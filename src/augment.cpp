@@ -33,10 +33,11 @@ class DataugOpKernel : public OpKernel {
     std::vector<int64> outputSize;
     float translation[2];                       //!< normalized translation range in X and Y directions
     float scale[2];                             //!< scaling factor range in X and Y directions
+    float prescale;                             //!< constant scaling factor
     float rotation;                             //!< in-plane rotation range in radians
     float perspective[2];                       //!< out-of-plane rotation range in radians around horizontal and vertical axes (tilt and pan)
     float cutoutProb;                           //!< CutOut per-image probability
-    float cutoutSize[2];                        //!< CutOut normalized size range
+    float cutout[2];                            //!< CutOut normalized size range
     float mixupProb;                            //!< Mixup per-image probability
     float mixupAlpha;                           //!< Mixup alpha parameter
     float hue;                                  //!< hue shift range in radians
@@ -71,12 +72,13 @@ public:
         if (!outputSize.empty() && outputSize.size() != 2)
             context->CtxFailure(errors::InvalidArgument("Invalid output_size: expected an empty list or a list of 2 entries, got " + std::to_string(outputSize.size())));
 
-        // get translation magnitude
+        // get translation range
         getPair(context, "translation", translation[0], translation[1]);
 
-        // get scaling magnitude
+        // get scaling range
         size_t n = getPair(context, "scale", scale[0], scale[1]);
         isotropicScaling = (n == 1);
+        OP_REQUIRES_OK(context, context->GetAttr("prescale", &prescale));
 
         // get rotation angle and convert to radians
         OP_REQUIRES_OK(context, context->GetAttr("rotation", &rotation));
@@ -91,7 +93,7 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("cutout_prob", &cutoutProb));
         if (cutoutProb < 0 || cutoutProb > 1)
             context->CtxFailure(errors::InvalidArgument("Invalid CutOut probability: " + std::to_string(cutoutProb) + ", expected a value in [0, 1] range"));
-        n = getPair(context, "cutout_size", cutoutSize[0], cutoutSize[1]);
+        n = getPair(context, "cutout_size", cutout[0], cutout[1]);
         if (n == 0)
             cutoutProb = 0;
 
@@ -175,14 +177,14 @@ public:
         std::uniform_real_distribution<float>
             xShiftFactor(-translation[0], translation[0]),
             yShiftFactor(-translation[1], translation[1]),
-            xScaleFactor(1.0f - scale[0], 1.0f + scale[0]),
-            yScaleFactor(1.0f - scale[1], 1.0f + scale[1]),
+            xScaleFactor(prescale - scale[0], prescale + scale[0]),
+            yScaleFactor(prescale - scale[1], prescale + scale[1]),
             rotationAngle(-rotation, rotation),
             tiltAngle(-perspective[0], perspective[0]),
             panAngle(-perspective[1], perspective[1]),
             cutoutApplication(0.0f, 1.0f),
             cutoutPos(0.0f, 1.0f),
-            cutoutSizeFactor(cutoutSize[0], cutoutSize[1]),
+            cutoutSize(cutout[0], cutout[1]),
             mixupApplication(0.0f, 1.0f),
             mixShift(-0.1f, 0.1f),
             hueShift(-hue, hue),
@@ -216,8 +218,8 @@ public:
                 img.flags += FLAG_CUTOUT;
                 img.cutoutPos[0] = cutoutPos(rnd);
                 img.cutoutPos[1] = cutoutPos(rnd);
-                img.cutoutSize[0] = 0.5f * cutoutSizeFactor(rnd);
-                img.cutoutSize[1] = 0.5f * cutoutSizeFactor(rnd);
+                img.cutoutSize[0] = 0.5f * cutoutSize(rnd);
+                img.cutoutSize[1] = 0.5f * cutoutSize(rnd);
             }
 
             // Mixup params
@@ -298,6 +300,7 @@ REGISTER_OP("Augment")
     .Attr("output_size:       list(int) = []")
     .Attr("translation:       list(float) = []")
     .Attr("scale:             list(float) = []")
+    .Attr("prescale:          float = 1")
     .Attr("rotation:          float = 0")
     .Attr("perspective:       list(float) = []")
     .Attr("flip_horizontally: bool = false")
@@ -325,13 +328,15 @@ REGISTER_OP("Augment")
             input_labels:       A `Tensor` containing input labels in one-hot format. Optional, can be empty. If not empty, its outermost dimension is expected to match the batch size.
             output_size:        A list [W, H] specifying the output batch width and height in pixels. If not specified, the input batch size is used (default).
             translation:        Normalized image translation range along X and Y axis. `0.1` corresponds by shifting the image by at most 10% of its size in both directions.
-                                If one value given, the same range applies for X and Y axes. If empty, no translation is applied to the images.
+                                If one value given, the same range applies for X and Y axes. If empty, no translation is applied.
             scale:              Scaling factor range along X and Y axes. `0.1` corresponds to stretching the image by at most 10%.
-                                If one value given, the applied scaling keeps the aspect ratio: the same factor is used along X and Y axes. If empty, no scaling is applied to the images.
+                                If one value given, the applied scaling keeps the aspect ratio: the same factor is used along X and Y axes. If empty, no scaling is applied.
+            prescale:           A constant scaling factor applied to all images. Can be used to shift the random scaling factor distribution from its default average equal to 1 and
+                                crop out image borders.
             rotation:           Rotation angle range in degrees. The images are rotated in both clockwise and counter-clockwise direction by a random angle limited by the given value.
             perspective:        Perspective distortion range: maximum tilting and panning angles in degrees.
                                 The image plane is rotated in 3D around X and Y axes (tilt and pan respectively) by random angles limited by the passed values in both directions.
-                                If one value given, the same range applies for both axes. If empty, no perspective distoriton is induced in the images.
+                                If one value given, the same range applies for both axes. If empty, no perspective distoriton is induced.
             flip_horizontally:  A boolean. If `True`, the images are flipped horizontally with 50% chance.
             flip_vertically:    A boolean. If `True`, the images are flipped vertically with 50% chance.
             hue:                Hue shift range in degrees. The image pixels color hues are shifted by a random angle limited by the given value.
