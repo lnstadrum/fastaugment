@@ -130,15 +130,28 @@ public:
     void Compute(OpKernelContext* context) override {
         // grab the input tensor
         const Tensor& inputTensor = context->input(0);
-        OP_REQUIRES(context, inputTensor.shape().dims() == 4, errors::InvalidArgument("Expected a 4-dimensional input tensor, got " + std::to_string(inputTensor.shape().dims()) + " dimensions"));
+        const auto& inputShape = inputTensor.shape();
+        OP_REQUIRES(context, inputShape.dims() == 3 || inputShape.dims() == 4,
+            errors::InvalidArgument("Expected a 3- or 4-dimensional input tensor, got " + std::to_string(inputShape.dims()) + " dimensions"));
         const in_t* inputPtr = inputTensor.flat<in_t>().data();
 
         // get input sizes
+        const bool isBatch = inputShape.dims() == 4;
         const int64
-            batchSize = inputTensor.shape().dim_size(0),
-            inputHeight = inputTensor.shape().dim_size(1),
-            inputWidth = inputTensor.shape().dim_size(2),
-            inputChannels = inputTensor.shape().dim_size(3);
+            batchSize = isBatch ? inputShape.dim_size(0) : 1,
+            inputHeight = inputShape.dim_size(isBatch ? 1 : 0),
+            inputWidth = inputShape.dim_size(isBatch ? 2 : 1),
+            inputChannels = inputShape.dim_size(isBatch ? 3 : 2),
+            outputWidth = outputSize.empty() ? inputWidth : outputSize[0],
+            outputHeight = outputSize.empty() ? inputHeight : outputSize[1];
+
+        // compute scale factors to keep the aspect ratio
+        float arScaleX = 1, arScaleY = 1;
+        if (!outputSize.empty())
+            if (inputWidth * outputHeight >= inputHeight * outputWidth)
+                arScaleX = (float)(outputWidth * inputHeight) / (inputWidth * outputHeight);
+            else
+                arScaleY = (float)(outputHeight * inputWidth) / (inputHeight * outputWidth);
 
         // check number of input channels
         OP_REQUIRES(context, inputChannels == 3, errors::InvalidArgument("Expected a 3-channel input tensor, got " + std::to_string(inputChannels) + " channels"));
@@ -203,7 +216,7 @@ public:
             const float
                 scaleX = xScaleFactor(rnd),
                 scaleY = isotropicScaling ? scaleX : yScaleFactor(rnd);
-            setGeometricTransform(img, panAngle(rnd), tiltAngle(rnd), rotationAngle(rnd), scaleX, scaleY);
+            setGeometricTransform(img, panAngle(rnd), tiltAngle(rnd), rotationAngle(rnd), arScaleX * scaleX, arScaleY * scaleY);
 
             img.translation[0] = xShiftFactor(rnd);
             img.translation[1] = yShiftFactor(rnd);
@@ -246,11 +259,11 @@ public:
         CUDASSERT(cudaMemcpyAsync(paramsGpuPtr, paramsCpu.data(), paramsSizeBytes, cudaMemcpyHostToDevice, stream), "Cannot copy processing parameters to GPU");
 
         // create an output tensor
-        const size_t
-            outputWidth = outputSize.empty() ? inputWidth : outputSize[0],
-            outputHeight = outputSize.empty() ? inputHeight : outputSize[1];
         Tensor* outputTensor = nullptr;
-        OP_REQUIRES_OK(context, context->allocate_output(0, { (int64)batchSize, (int64)outputHeight, (int64)outputWidth, 3 }, &outputTensor));
+        if (isBatch)
+            OP_REQUIRES_OK(context, context->allocate_output(0, { (int64)batchSize, outputHeight, outputWidth, 3 }, &outputTensor));
+        else
+            OP_REQUIRES_OK(context, context->allocate_output(0, { outputHeight, outputWidth, 3 }, &outputTensor));
 
         // create output labels tensor
         Tensor* outputLabelsTensor = nullptr;
@@ -340,7 +353,7 @@ REGISTER_OP("Augment")
             - translation.
 
         Args:
-            input:              A `Tensor` containing the input batch in channels-last (NHWC) format. 3-channel color images are expected in the batch (C=3).
+            input:              A `Tensor` containing an input image or input batch in channels-last (HWC or NHWC) layout. 3-channel color images are expected (C=3).
             input_labels:       A `Tensor` containing input labels in one-hot format. Optional, can be empty. If not empty, its outermost dimension is expected to match the batch size.
             output_size:        A list [W, H] specifying the output batch width and height in pixels. If not specified, the input batch size is used (default).
             translation:        Normalized image translation range along X and Y axis. `0.1` corresponds by shifting the image by at most 10% of its size in both directions.
@@ -370,10 +383,14 @@ REGISTER_OP("Augment")
             mixup_alpha:        Mixup `alpha` parameter. See the original paper for more details: https://arxiv.org/pdf/1710.09412.pdf
 
         Returns:
-            A `Tensor` with a set of transformations applied to images in the input batch, and another `Tensor` containing the image labels in one-hot format.
+            A `Tensor` with a set of transformations applied to the input image or batch, and another `Tensor` containing the image labels in one-hot format.
     )doc")
 
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* ctx) {
+        auto inputRank = ctx->Rank(ctx->input(0));
+        if (inputRank != 3 && inputRank != 4)
+            errors::InvalidArgument("Expected a 3- or 4-dimensional input tensor, got " + std::to_string(inputRank) + " dimensions");
+
         // get output size parameter
         std::vector<int64> outputSize;
         TF_RETURN_IF_ERROR(ctx->GetAttr("output_size", &outputSize));
@@ -383,6 +400,12 @@ REGISTER_OP("Augment")
         // return output shape
         if (outputSize.empty())
             ctx->set_output(0, ctx->input(0));
+        else if (inputRank == 3)
+            ctx->set_output(0, ctx->MakeShape({
+                outputSize[0],
+                outputSize[1],
+                3
+            }));
         else
             ctx->set_output(0, ctx->MakeShape({
                 ctx->Dim(ctx->input(0), 0),
