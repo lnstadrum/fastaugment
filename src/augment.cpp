@@ -190,8 +190,8 @@ public:
             hueShift(-hue, hue),
             saturationFactor(1 - saturation, 1 + saturation),
             valueFactor(1 - value, 1 + value);
-        std::uniform_int_distribution<int>
-            flipping(0, 1), mixIdx(0, batchSize - 1);
+        std::uniform_int_distribution<size_t>
+            flipping(0, 1), mixIdx(1, batchSize - 1);
         std::gamma_distribution<> mixupGamma(mixupAlpha, 1);
 
         // sample transformation parameters
@@ -224,10 +224,12 @@ public:
 
             // Mixup params
             if (mixupApplication(rnd) < mixupProb) {
-                img.mixImgIdx = mixIdx(rnd);
+                img.mixImgIdx = (i + mixIdx(rnd)) % batchSize;
                 float x = mixupGamma(rnd);
-                img.mixFactor = x / (x + mixupGamma(rnd));
-                    // beta distribution generation trick using gamma distribution
+                img.mixFactor = x / (x + mixupGamma(rnd));      // beta distribution generation trick using gamma distribution
+                if (img.mixFactor > 0.5)
+                    img.mixFactor = 1 - img.mixFactor;
+                    // make sure the current image has higher contribution to avoid duplicates
             }
             else {
                 img.mixImgIdx = i;
