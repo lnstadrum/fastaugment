@@ -285,12 +285,26 @@ public:
 };
 
 
+class SeedOpKernel : public OpKernel {
+    int seed;
+public:
+    explicit SeedOpKernel(OpKernelConstruction* context) : OpKernel(context) {
+        OP_REQUIRES_OK(context, context->GetAttr("seed", &seed));
+    }
+
+    void Compute(OpKernelContext* context) {
+        rnd = std::default_random_engine(seed);
+    }
+};
+
+
 // Register operations kernels
 #define REGISTER_KERNEL(IN_T, OUT_T) \
     REGISTER_KERNEL_BUILDER(Name("Augment").Device(DEVICE_GPU).HostMemory("input_labels").HostMemory("output_labels"), DataugOpKernel<Eigen::GpuDevice, IN_T, OUT_T>)
 
-
 REGISTER_KERNEL(uint8_t, float);
+
+REGISTER_KERNEL_BUILDER(Name("SetSeed").Device(DEVICE_CPU), SeedOpKernel);
 
 
 // Register operations
@@ -381,3 +395,7 @@ REGISTER_OP("Augment")
 
         return Status::OK();
     });
+
+
+REGISTER_OP("SetSeed")
+    .Attr("seed: int");

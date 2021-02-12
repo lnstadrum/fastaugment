@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '10'
 
-from augment import augment
+from augment import augment, set_seed, BYPASS_PARAMS
 import numpy
 import tensorflow as tf
 import unittest
@@ -31,15 +31,7 @@ class ColorTests(tf.test.TestCase):
         input_batch = tf.cast(input_batch, tf.uint8)
 
         # apply identity transformation
-        output_batch = augment(input_batch,
-                               rotation=0,
-                               flip_vertically=False,
-                               flip_horizontally=False,
-                               hue=0,
-                               saturation=0,
-                               value=0,
-                               cutout_prob=0,
-                               mixup_prob=0)
+        output_batch = augment(input_batch, **BYPASS_PARAMS)
 
         # cast back to uint8 and compare: expected same output
         output_batch = tf.cast(255 * output_batch, tf.uint8)
@@ -91,11 +83,11 @@ class MixupLabelsTests(tf.test.TestCase):
         input_batch = tf.tile(tf.reshape(input_batch, (-1, 1, 1, 1)), (1, 5, 5, 3))
 
         # transform labels to one-hot
-        input_labels = tf.one_hot(input_labels, 2, dtype=tf.float32)
+        input_proba = tf.one_hot(input_labels, 2, dtype=tf.float32)
 
         # apply mixup
-        output_batch, output_labels = augment(input_batch,
-                                              input_labels,
+        output_batch, output_proba = augment(input_batch,
+                                              input_proba,
                                               rotation=0,
                                               flip_vertically=True,
                                               flip_horizontally=True,
@@ -106,10 +98,38 @@ class MixupLabelsTests(tf.test.TestCase):
                                               mixup_prob=0.9)
 
         # check that probabilities sum up to 1
-        self.assertAllClose(output_labels[:,0] + output_labels[:, 1], tf.ones((50)))
+        self.assertAllClose(output_proba[:,0] + output_proba[:, 1], tf.ones((50)))
 
         # compare probabilities to center pixel values
-        self.assertAllClose(output_labels[:, 1], output_batch[:, 3, 3, 0])
+        self.assertAllClose(output_proba[:, 1], output_batch[:, 3, 3, 0])
+
+
+class SeedTests(tf.test.TestCase):
+    def test_seed(self):
+        # make random input
+        input_batch = tf.random.uniform((16, 50, 50, 3), maxval=255)
+        input_batch = tf.cast(input_batch, tf.uint8)
+
+        # make random labels
+        input_labels = tf.random.uniform((16,), minval=0, maxval=2, dtype=tf.int32)
+        input_proba = tf.one_hot(input_labels, 20, dtype=tf.float32)
+
+        # generate output batches
+        set_seed(123)
+        output_batch1, output_proba1 = augment(input_batch, input_proba)
+        output_batch2, output_proba2 = augment(input_batch, input_proba)
+        set_seed(234)
+        output_batch3, output_proba3 = augment(input_batch, input_proba)
+        set_seed(123)
+        output_batch4, output_proba4 = augment(input_batch, input_proba)
+
+        # compare
+        self.assertNotAllEqual(output_batch1, output_batch2)
+        self.assertNotAllEqual(output_proba1, output_proba2)
+        self.assertNotAllEqual(output_batch1, output_batch3)
+        self.assertNotAllEqual(output_proba1, output_proba3)
+        self.assertAllEqual(output_batch1, output_batch4)
+        self.assertAllEqual(output_proba1, output_proba4)
 
 
 if __name__ == '__main__':
