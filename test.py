@@ -132,5 +132,29 @@ class SeedTests(tf.test.TestCase):
         self.assertAllEqual(output_proba1, output_proba4)
 
 
+
+class DatatypeTests(tf.test.TestCase):
+    """ Datatype verification
+    """
+    def test_uint8(self):
+        # make random input
+        input_batch = tf.random.uniform((64, 32, 32, 3), maxval=255)
+        input_batch = tf.cast(input_batch, tf.uint8)
+
+        # apply identity transformation
+        set_seed(96)
+        output_batch_ref = augment(input_batch, output_type=tf.uint8)
+        set_seed(96)
+        output_batch_float = augment(input_batch, output_type=tf.float32)
+
+        # check output types
+        self.assertTrue(output_batch_ref.dtype == tf.uint8)
+        self.assertTrue(output_batch_float.dtype == tf.float32)
+
+        # cast back to uint8 and compare: expected same output
+        output_batch_test = tf.cast(255 * tf.clip_by_value(output_batch_float, 0, 1), tf.uint8)
+        self.assertAllEqual(output_batch_ref, output_batch_test)
+
+
 if __name__ == '__main__':
     unittest.main()

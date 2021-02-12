@@ -2,6 +2,21 @@
 #include <stdexcept>
 
 
+using namespace dataug;
+
+
+template <typename T>
+__device__ void store(T&, float);
+
+
+template <> __device__ void store<float>(float& out, float val) {
+    out = val;
+}
+
+template <> __device__ void store<uint8_t>(uint8_t& out, float val) {
+    out = 255 * __saturatef(val);
+}
+
 
 template <typename in_t, typename out_t>
 __global__ void dataugPaddingKernel(const in_t* in, out_t* out, size_t inWidth, size_t height, size_t outWidth) {
@@ -20,7 +35,8 @@ __global__ void dataugPaddingKernel(const in_t* in, out_t* out, size_t inWidth, 
 }
 
 
-__global__ void dataugProcessingKernel(cudaTextureObject_t texObj, float* out, const size_t width, const size_t height, const size_t batchSize, const Params* params) {
+template <typename out_t>
+__global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, const size_t width, const size_t height, const size_t batchSize, const Params* params) {
     // get pixel position
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -83,13 +99,13 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, float* out, c
 
     // apply color transform and rotate
     unsigned int i = 3 * ((blockIdx.z * height + y) * width + x);
-    out[i    ] = __saturatef(imgParams.color[0][0] * sample.x + imgParams.color[0][1] * sample.y + imgParams.color[0][2] * sample.z);
-    out[i + 1] = __saturatef(imgParams.color[1][0] * sample.x + imgParams.color[1][1] * sample.y + imgParams.color[1][2] * sample.z);
-    out[i + 2] = __saturatef(imgParams.color[2][0] * sample.x + imgParams.color[2][1] * sample.y + imgParams.color[2][2] * sample.z);
+    store(out[i    ], imgParams.color[0][0] * sample.x + imgParams.color[0][1] * sample.y + imgParams.color[0][2] * sample.z);
+    store(out[i + 1], imgParams.color[1][0] * sample.x + imgParams.color[1][1] * sample.y + imgParams.color[1][2] * sample.z);
+    store(out[i + 2], imgParams.color[2][0] * sample.x + imgParams.color[2][1] * sample.y + imgParams.color[2][2] * sample.z);
 }
 
 
-void padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
+void dataug::padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
     const dim3 threads(32, 32);
     const dim3 blocks((width  + threads.x - 1) / threads.x,
                       (height + threads.y - 1) / threads.y,
@@ -99,7 +115,8 @@ void padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, siz
 }
 
 
-void compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
+template<typename out_t>
+void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
     // set up texture
     struct cudaResourceDesc resDesc;
     memset(&resDesc, 0, sizeof(resDesc));
@@ -147,7 +164,17 @@ void compute(cudaStream_t stream, const uint8_t* input, float* output, size_t in
 }
 
 
-void setColorTransform(Params& params, float hueShiftRad, float saturationFactor, float valueFactor) {
+void dataug::compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
+    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, params);
+}
+
+
+void dataug::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
+    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, params);
+}
+
+
+void dataug::setColorTransform(Params& params, float hueShiftRad, float saturationFactor, float valueFactor) {
     // Sampling a rotation and scaling matrix in RGB space:
     //   - rotation around (1,1,1) vector by hueShiftRad radians,
     //   - scaling along (1,1,1) vector by valueFactor and in orthogonal direction by saturationFactor
@@ -174,7 +201,7 @@ void setColorTransform(Params& params, float hueShiftRad, float saturationFactor
 }
 
 
-void setGeometricTransform(Params& params, float pan, float tilt, float roll, float scaleX, float scaleY) {
+void dataug::setGeometricTransform(Params& params, float pan, float tilt, float roll, float scaleX, float scaleY) {
     /*
         X, Y: image axes, Z: forward
 

@@ -128,6 +128,8 @@ public:
 
 
     void Compute(OpKernelContext* context) override {
+        using namespace dataug;
+
         // grab the input tensor
         const Tensor& inputTensor = context->input(0);
         const auto& inputShape = inputTensor.shape();
@@ -313,18 +315,20 @@ public:
 
 // Register operations kernels
 #define REGISTER_KERNEL(IN_T, OUT_T) \
-    REGISTER_KERNEL_BUILDER(Name("Augment").Device(DEVICE_GPU).HostMemory("input_labels").HostMemory("output_labels"), DataugOpKernel<Eigen::GpuDevice, IN_T, OUT_T>)
+    REGISTER_KERNEL_BUILDER(Name("Augment").Device(DEVICE_GPU).TypeConstraint<OUT_T>("output_type").HostMemory("input_labels").HostMemory("output_labels"), DataugOpKernel<Eigen::GpuDevice, IN_T, OUT_T>)
 
 REGISTER_KERNEL(uint8_t, float);
+REGISTER_KERNEL(uint8_t, uint8_t);
 
 REGISTER_KERNEL_BUILDER(Name("SetSeed").Device(DEVICE_CPU), SeedOpKernel);
 
 
 // Register operations
 REGISTER_OP("Augment")
+    .Attr("output_type: {uint8, float}")
     .Input("input: uint8")
     .Input("input_labels: float")
-    .Output("output: float")
+    .Output("output: output_type")
     .Output("output_labels: float")
     .Attr("output_size:       list(int) = []")
     .Attr("translation:       list(float) = []")
@@ -356,6 +360,7 @@ REGISTER_OP("Augment")
             input:              A `Tensor` containing an input image or input batch in channels-last (HWC or NHWC) layout. 3-channel color images are expected (C=3).
             input_labels:       A `Tensor` containing input labels in one-hot format. Optional, can be empty. If not empty, its outermost dimension is expected to match the batch size.
             output_size:        A list [W, H] specifying the output batch width and height in pixels. If not specified, the input batch size is used (default).
+            output_dtype:       Output image datatype. Can be `float32` or `uint8`.
             translation:        Normalized image translation range along X and Y axis. `0.1` corresponds by shifting the image by at most 10% of its size in both directions.
                                 If one value given, the same range applies for X and Y axes. If empty, no translation is applied.
             scale:              Scaling factor range along X and Y axes. `0.1` corresponds to stretching the image by at most 10%.

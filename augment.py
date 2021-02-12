@@ -32,8 +32,19 @@ BYPASS_PARAMS = {
 
 
 @tf.autograph.experimental.do_not_convert
+def center_crop(x, size, translation=0):
+    x, _ = lib.Augment(input=x,
+                       input_labels=empty_tensor,
+                       output_size=size,
+                       output_type=tf.uint8,
+                       translation=[translation])
+    return x
+
+
+@tf.autograph.experimental.do_not_convert
 def augment(x, y=None,
             output_size=None,
+            output_type=tf.float32,
             translation=0.1,
             scale=0.1,
             prescale=1,
@@ -52,6 +63,7 @@ def augment(x, y=None,
     x_, y_ = lib.Augment(input=x,
                          input_labels=empty_tensor if y is None else y,
                          output_size=output_size or [],
+                         output_type=output_type,
                          translation=listify(translation),
                          scale=listify(scale),
                          prescale=prescale,
