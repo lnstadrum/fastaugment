@@ -21,13 +21,14 @@ BYPASS_PARAMS = {
     'prescale'         : 1,
     'rotation'         : 0,
     'perspective'      : 0,
+    'flip_horizontally': False,
+    'flip_vertically'  : False,
     'cutout_prob'      : 0,
     'mixup_prob'       : 0,
     'saturation'       : 0,
     'value'            : 0,
     'hue'              : 0,
-    'flip_horizontally': False,
-    'flip_vertically'  : False
+    'gamma_corr'       : 0
 }
 
 
@@ -57,6 +58,7 @@ def augment(x, y=None,
             hue=10,
             saturation=0.4,
             value=0.1,
+            gamma_corr=0.2,
             flip_horizontally=True,
             flip_vertically=False):
     listify = lambda it : it if isinstance(it, list) or isinstance(it, tuple) else [it]
@@ -76,6 +78,7 @@ def augment(x, y=None,
                          hue=hue,
                          saturation=saturation,
                          value=value,
+                         gamma_corr=gamma_corr,
                          flip_horizontally=flip_horizontally,
                          flip_vertically=flip_vertically)
     if y is None:

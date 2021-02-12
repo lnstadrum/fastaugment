@@ -43,6 +43,7 @@ class DataugOpKernel : public OpKernel {
     float hue;                                  //!< hue shift range in radians
     float saturation;                           //!< saturation factor range
     float value;                                //!< value factor range
+    float gammaCorrection;                      //!< gamma correction range
     bool flipHorizontally, flipVertically;      //!< if `true`, the image is flipped with 50% chance along a specific direction
     bool isotropicScaling;                      //!< if `true`, the scale factor is the same along X and Y direction
 
@@ -89,6 +90,10 @@ public:
         perspective[0] *= pi / 180.0f;
         perspective[1] *= pi / 180.0f;
 
+        // get flipping flags
+        OP_REQUIRES_OK(context, context->GetAttr("flip_horizontally", &flipHorizontally));
+        OP_REQUIRES_OK(context, context->GetAttr("flip_vertically", &flipVertically));
+
         // get CutOut parameters
         OP_REQUIRES_OK(context, context->GetAttr("cutout_prob", &cutoutProb));
         if (cutoutProb < 0 || cutoutProb > 1)
@@ -109,9 +114,10 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("saturation", &saturation));
         OP_REQUIRES_OK(context, context->GetAttr("value", &value));
 
-        // get flipping flags
-        OP_REQUIRES_OK(context, context->GetAttr("flip_horizontally", &flipHorizontally));
-        OP_REQUIRES_OK(context, context->GetAttr("flip_vertically", &flipVertically));
+        // get gamma correction range
+        OP_REQUIRES_OK(context, context->GetAttr("gamma_corr", &gammaCorrection));
+        if (gammaCorrection < 0 || gammaCorrection > 0.5)
+            context->CtxFailure(errors::InvalidArgument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.5] range."));
 
         // get current device number
         int device;
@@ -204,7 +210,8 @@ public:
             mixShift(-0.1f, 0.1f),
             hueShift(-hue, hue),
             saturationFactor(1 - saturation, 1 + saturation),
-            valueFactor(1 - value, 1 + value);
+            valueFactor(1 - value, 1 + value),
+            gammaCorrFactor(1 - gammaCorrection, 1 + gammaCorrection);
         std::uniform_int_distribution<size_t>
             flipping(0, 1), mixIdx(1, batchSize - 1);
         std::gamma_distribution<> mixupGamma(mixupAlpha, 1);
@@ -213,13 +220,17 @@ public:
         for (size_t i = 0; i < paramsCpu.size(); ++i) {
             auto &img = paramsCpu[i];
 
+            // color correction
             setColorTransform(img, hueShift(rnd), saturationFactor(rnd), valueFactor(rnd));
+            img.gammaCorr = gammaCorrFactor(rnd);
 
+            // geometric transform (homography)
             const float
                 scaleX = xScaleFactor(rnd),
                 scaleY = isotropicScaling ? scaleX : yScaleFactor(rnd);
             setGeometricTransform(img, panAngle(rnd), tiltAngle(rnd), rotationAngle(rnd), arScaleX * scaleX, arScaleY * scaleY);
 
+            // translation and flipping
             img.translation[0] = xShiftFactor(rnd);
             img.translation[1] = yShiftFactor(rnd);
             img.flags = 0;
@@ -244,7 +255,7 @@ public:
                 img.mixFactor = x / (x + mixupGamma(rnd));      // beta distribution generation trick using gamma distribution
                 if (img.mixFactor > 0.5)
                     img.mixFactor = 1 - img.mixFactor;
-                    // make sure the current image has higher contribution to avoid duplicates
+                    // making sure the current image has higher contribution to avoid duplicates
             }
             else {
                 img.mixImgIdx = i;
@@ -341,6 +352,7 @@ REGISTER_OP("Augment")
     .Attr("hue:               float = 0")
     .Attr("saturation:        float = 0")
     .Attr("value:             float = 0")
+    .Attr("gamma_corr:        float = 0")
     .Attr("cutout_prob:       float = 0")
     .Attr("cutout_size:       list(float) = [0]")
     .Attr("mixup_prob:        float = 0")
@@ -361,7 +373,7 @@ REGISTER_OP("Augment")
             input_labels:       A `Tensor` containing input labels in one-hot format. Optional, can be empty. If not empty, its outermost dimension is expected to match the batch size.
             output_size:        A list [W, H] specifying the output batch width and height in pixels. If not specified, the input batch size is used (default).
             output_dtype:       Output image datatype. Can be `float32` or `uint8`.
-            translation:        Normalized image translation range along X and Y axis. `0.1` corresponds by shifting the image by at most 10% of its size in both directions.
+            translation:        Normalized image translation range along X and Y axis. `0.1` corresponds to a random shift by at most 10% of the image size in both directions.
                                 If one value given, the same range applies for X and Y axes. If empty, no translation is applied.
             scale:              Scaling factor range along X and Y axes. `0.1` corresponds to stretching the image by at most 10%.
                                 If one value given, the applied scaling keeps the aspect ratio: the same factor is used along X and Y axes. If empty, no scaling is applied.
@@ -379,6 +391,8 @@ REGISTER_OP("Augment")
                                 A fully desaturated image becomes grayscale.
             value:              Value (brightness) factor range. The image pixels values are scaled by a random factor sampled in range `[1 - v, 1 + v]` for `s` equal to `value`.
                                 Scaling the image by a small factor makes it darker.
+            gamma_corr:         Gamma correction factor range. The factor value is randomly sampled from `[1 - g, 1 + g]` range for `g` equal to `gamma_corr`.
+                                Gamma correction boosts (factor below 1) or reduces (factor above 1) dark image areas intensity, while the bright areas are less affected.
             cutout_prob:        Probability of CutOut being applied to an image in the batch.
                                 CutOut erases a part of an image. See the original paper for more details: https://arxiv.org/pdf/1708.04552.pdf
             cutout_size:        CutOut size normalized range. Width and height of erased areas are sampled from this given range. If a single value is given, the sizes are constant.

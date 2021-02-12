@@ -31,10 +31,9 @@ class ColorTests(tf.test.TestCase):
         input_batch = tf.cast(input_batch, tf.uint8)
 
         # apply identity transformation
-        output_batch = augment(input_batch, **BYPASS_PARAMS)
+        output_batch = augment(input_batch, output_type=tf.uint8, **BYPASS_PARAMS)
 
-        # cast back to uint8 and compare: expected same output
-        output_batch = tf.cast(255 * output_batch, tf.uint8)
+        # compare: expected same output
         self.assertAllEqual(output_batch, input_batch)
 
     def test_center_pixel(self):
@@ -51,6 +50,7 @@ class ColorTests(tf.test.TestCase):
                                hue=0,
                                saturation=0,
                                value=0,
+                               gamma_corr=0,
                                cutout_prob=0,
                                mixup_prob=0)
 
@@ -94,6 +94,7 @@ class MixupLabelsTests(tf.test.TestCase):
                                               hue=0,
                                               saturation=0,
                                               value=0,
+                                              gamma_corr=0,
                                               cutout_prob=0,
                                               mixup_prob=0.9)
 

@@ -97,11 +97,22 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
             sample.x = sample.y = sample.z = 0.5f;
     }
 
-    // apply color transform and rotate
+    // apply color transform
+    if (imgParams.gammaCorr != 1) {
+        sample.x = __powf(sample.x, imgParams.gammaCorr);
+        sample.y = __powf(sample.y, imgParams.gammaCorr);
+        sample.z = __powf(sample.z, imgParams.gammaCorr);
+    }
+    float r = imgParams.color[0][0] * sample.x + imgParams.color[0][1] * sample.y + imgParams.color[0][2] * sample.z;
+    float g = imgParams.color[1][0] * sample.x + imgParams.color[1][1] * sample.y + imgParams.color[1][2] * sample.z;
+    float b = imgParams.color[2][0] * sample.x + imgParams.color[2][1] * sample.y + imgParams.color[2][2] * sample.z;
+
+
+    // write out
     unsigned int i = 3 * ((blockIdx.z * height + y) * width + x);
-    store(out[i    ], imgParams.color[0][0] * sample.x + imgParams.color[0][1] * sample.y + imgParams.color[0][2] * sample.z);
-    store(out[i + 1], imgParams.color[1][0] * sample.x + imgParams.color[1][1] * sample.y + imgParams.color[1][2] * sample.z);
-    store(out[i + 2], imgParams.color[2][0] * sample.x + imgParams.color[2][1] * sample.y + imgParams.color[2][2] * sample.z);
+    store(out[i    ], r);
+    store(out[i + 1], g);
+    store(out[i + 2], b);
 }
 
 
