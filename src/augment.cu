@@ -4,7 +4,7 @@
 
 
 template <typename in_t, typename out_t>
-__global__ void paddingKernel(const in_t* in, out_t* out, size_t inWidth, size_t height, size_t outWidth) {
+__global__ void dataugPaddingKernel(const in_t* in, out_t* out, size_t inWidth, size_t height, size_t outWidth) {
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -20,7 +20,7 @@ __global__ void paddingKernel(const in_t* in, out_t* out, size_t inWidth, size_t
 }
 
 
-__global__ void kernel(cudaTextureObject_t texObj, float* out, const size_t width, const size_t height, const size_t batchSize, const Params* params) {
+__global__ void dataugProcessingKernel(cudaTextureObject_t texObj, float* out, const size_t width, const size_t height, const size_t batchSize, const Params* params) {
     // get pixel position
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -95,7 +95,7 @@ void padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, siz
                       (height + threads.y - 1) / threads.y,
                       batchSize);
 
-    paddingKernel<uint8_t, uint8_t> <<<blocks, threads, 0, stream>>> (input, output, width, height, outWidth);
+    dataugPaddingKernel<uint8_t, uint8_t> <<<blocks, threads, 0, stream>>> (input, output, width, height, outWidth);
 }
 
 
@@ -129,11 +129,13 @@ void compute(cudaStream_t stream, const uint8_t* input, float* output, size_t in
 
     // run kernel
     const dim3 threads(32, 32);
-    const dim3 blocks((outWidth  + threads.x - 1) / threads.x,
-                      (outHeight + threads.y - 1) / threads.y,
-                      batchSize);
+    const dim3 blocks(
+        (outWidth  + threads.x - 1) / threads.x,
+        (outHeight + threads.y - 1) / threads.y,
+        batchSize
+    );
 
-    kernel<<<blocks, threads, 0, stream>>>(texObj, output, outWidth, outHeight, batchSize, params);
+    dataugProcessingKernel<<<blocks, threads, 0, stream>>>(texObj, output, outWidth, outHeight, batchSize, params);
 
     // destroy texture
     cudaDestroyTextureObject(texObj);
