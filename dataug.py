@@ -2,19 +2,19 @@ import tensorflow as tf
 import os
 
 
-# load library
+# loading the library
 script_dir = os.path.dirname(os.path.realpath(__file__))
 try:
-    lib = tf.load_op_library(os.path.join(script_dir, 'libaugment.so'))
+    lib = tf.load_op_library(os.path.join(script_dir, 'libdataug.so'))
 except:
-    lib = tf.load_op_library(os.path.join(script_dir, 'build', 'libaugment.so'))
+    lib = tf.load_op_library(os.path.join(script_dir, 'build', 'libdataug.so'))
 
 
-# make empty tensor placeholder
+# empty tensor placeholder
 empty_tensor = tf.convert_to_tensor(())
 
 
-# parameters to bypass any augmentation (for debuging purposes)
+# parameters disabling all augmentation tranformations (for debuging purposes)
 BYPASS_PARAMS = {
     'translation'      : 0,
     'scale'            : 0,

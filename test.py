@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '10'
 
-from augment import augment, set_seed, BYPASS_PARAMS
+from dataug import augment, set_seed, BYPASS_PARAMS
 import numpy
 import tensorflow as tf
 import unittest
@@ -44,6 +44,7 @@ class ColorTests(tf.test.TestCase):
 
         # apply transformations keeping the center pixel color unchanged
         output_batch = augment(input_batch,
+                               output_type=tf.uint8,
                                rotation=90,
                                flip_vertically=True,
                                flip_horizontally=True,
@@ -54,8 +55,7 @@ class ColorTests(tf.test.TestCase):
                                cutout_prob=0,
                                mixup_prob=0)
 
-        # cast back to uint8 and compare center pixel colors: expected same
-        output_batch = tf.cast(255 * output_batch, tf.uint8)
+        # compare center pixel colors: expected same
         self.assertAllEqual(output_batch[:,8,8,:], input_batch[:,8,8,:])
 
 

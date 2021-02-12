@@ -18,7 +18,7 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++14")
 include_directories(${TF_INCLUDE_DIRS})
 
 # add library
-CUDA_ADD_LIBRARY(augment
+CUDA_ADD_LIBRARY(dataug
     ${CMAKE_CURRENT_LIST_DIR}/src/augment.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/augment.cu
     SHARED)
