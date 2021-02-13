@@ -53,12 +53,13 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
     u += imgParams.translation[0];
     v += imgParams.translation[1];
 
-    // apply rotation
+    // apply 3D rotation
     u -= 0.5f;
     v -= 0.5f;
-    float z = u * imgParams.geom[2][0] + v * imgParams.geom[2][1] + 1;
-    float tu = (u * imgParams.geom[0][0] + v * imgParams.geom[0][1]) / z + 0.5f;
-    float tv = (u * imgParams.geom[1][0] + v * imgParams.geom[1][1]) / z + 0.5f;
+    // solving for z of intersection of the outbound ray with the image plane
+    float z = imgParams.geom[2][2] / (imgParams.geom[2][2] + imgParams.geom[0][2] * u + imgParams.geom[1][2] * v);
+    float tu = (z * (u * imgParams.geom[0][0] + v * imgParams.geom[1][0]) + (z - 1) * imgParams.geom[2][0]) + 0.5f;
+    float tv = (z * (u * imgParams.geom[0][1] + v * imgParams.geom[1][1]) + (z - 1) * imgParams.geom[2][1]) + 0.5f;
 
     // apply flipping
     if (imgParams.flags & FLAG_HORIZONTAL_FLIP)
@@ -231,7 +232,9 @@ void dataug::setGeometricTransform(Params& params, float pan, float tilt, float 
               -sin(c) cos(c)  0
                     0      0  1 ]
 
-        Considering the image is on Z=0 plane, the camera is at Z=1 point
+        Considering the image is on Z=0 plane, the camera is at Z=-1 point
+
+        full transform R = XY * YZ * XZ * Diag(scaleX, scaleY, 1)
     */
 
     const float
@@ -247,10 +250,16 @@ void dataug::setGeometricTransform(Params& params, float pan, float tilt, float 
     params.geom[1][1] = cosB * cosC;
     params.geom[1][2] = -sinA * sinC + sinB * cosA * cosC;
 
+    params.geom[2][0] = -sinA*cosB;
+    params.geom[2][1] = -sinB;
+    params.geom[2][2] = cosA*cosB;
+
     // apply scaling factors
     params.geom[0][0] *= scaleX;
     params.geom[0][1] *= scaleX;
+    params.geom[0][2] *= scaleX;
 
     params.geom[1][0] *= scaleY;
     params.geom[1][1] *= scaleY;
+    params.geom[1][2] *= scaleY;
 }

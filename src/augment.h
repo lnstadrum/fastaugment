@@ -19,7 +19,7 @@ namespace dataug {
     typedef struct {
         float color[3][3];      //!< matrix applied in RGB color space
         float gammaCorr;        //!< gamma correction factor
-        float geom[3][2];       //!< geometrical transformation
+        float geom[3][3];       //!< geometrical transformation
         float translation[2];   //!< normalized translation
         float cutoutPos[2];
         float cutoutSize[2];
