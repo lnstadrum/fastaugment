@@ -50,7 +50,7 @@ class ColorTests(tf.test.TestCase):
                                flip_horizontally=True,
                                hue=0,
                                saturation=0,
-                               value=0,
+                               brightness=0,
                                gamma_corr=0,
                                cutout_prob=0,
                                mixup_prob=0)
@@ -93,7 +93,7 @@ class MixupLabelsTests(tf.test.TestCase):
                                               flip_horizontally=True,
                                               hue=0,
                                               saturation=0,
-                                              value=0,
+                                              brightness=0,
                                               gamma_corr=0,
                                               cutout_prob=0,
                                               mixup_prob=0.9)

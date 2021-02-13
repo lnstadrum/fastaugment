@@ -56,8 +56,8 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
     // apply 3D rotation
     u -= 0.5f;
     v -= 0.5f;
-    // solving for z of intersection of the outbound ray with the image plane
     float z = imgParams.geom[2][2] / (imgParams.geom[2][2] + imgParams.geom[0][2] * u + imgParams.geom[1][2] * v);
+            // solving for z of intersection of the outbound ray with the image plane
     float tu = (z * (u * imgParams.geom[0][0] + v * imgParams.geom[1][0]) + (z - 1) * imgParams.geom[2][0]) + 0.5f;
     float tv = (z * (u * imgParams.geom[0][1] + v * imgParams.geom[1][1]) + (z - 1) * imgParams.geom[2][1]) + 0.5f;
 
@@ -107,7 +107,6 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
     float r = imgParams.color[0][0] * sample.x + imgParams.color[0][1] * sample.y + imgParams.color[0][2] * sample.z;
     float g = imgParams.color[1][0] * sample.x + imgParams.color[1][1] * sample.y + imgParams.color[1][2] * sample.z;
     float b = imgParams.color[2][0] * sample.x + imgParams.color[2][1] * sample.y + imgParams.color[2][2] * sample.z;
-
 
     // write out
     unsigned int i = 3 * ((blockIdx.z * height + y) * width + x);
@@ -250,9 +249,9 @@ void dataug::setGeometricTransform(Params& params, float pan, float tilt, float 
     params.geom[1][1] = cosB * cosC;
     params.geom[1][2] = -sinA * sinC + sinB * cosA * cosC;
 
-    params.geom[2][0] = -sinA*cosB;
+    params.geom[2][0] = -sinA * cosB;
     params.geom[2][1] = -sinB;
-    params.geom[2][2] = cosA*cosB;
+    params.geom[2][2] = cosA * cosB;
 
     // apply scaling factors
     params.geom[0][0] *= scaleX;

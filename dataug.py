@@ -26,7 +26,7 @@ BYPASS_PARAMS = {
     'cutout_prob'      : 0,
     'mixup_prob'       : 0,
     'saturation'       : 0,
-    'value'            : 0,
+    'brightness'       : 0,
     'hue'              : 0,
     'gamma_corr'       : 0
 }
@@ -70,7 +70,7 @@ def augment(x, y=None,
             mixup_alpha=0.4,
             hue=10,
             saturation=0.4,
-            value=0.1,
+            brightness=0.1,
             gamma_corr=0.2,
             flip_horizontally=True,
             flip_vertically=False):
@@ -90,7 +90,7 @@ def augment(x, y=None,
                          mixup_alpha=mixup_alpha,
                          hue=hue,
                          saturation=saturation,
-                         value=value,
+                         brightness=brightness,
                          gamma_corr=gamma_corr,
                          flip_horizontally=flip_horizontally,
                          flip_vertically=flip_vertically)

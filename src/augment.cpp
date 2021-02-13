@@ -42,7 +42,7 @@ class DataugOpKernel : public OpKernel {
     float mixupAlpha;                           //!< Mixup alpha parameter
     float hue;                                  //!< hue shift range in radians
     float saturation;                           //!< saturation factor range
-    float value;                                //!< value factor range
+    float brightness;                           //!< brightness range
     float gammaCorrection;                      //!< gamma correction range
     bool flipHorizontally, flipVertically;      //!< if `true`, the image is flipped with 50% chance along a specific direction
     bool isotropicScaling;                      //!< if `true`, the scale factor is the same along X and Y direction
@@ -112,12 +112,12 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("hue", &hue));
         hue *= pi / 180.0f;
         OP_REQUIRES_OK(context, context->GetAttr("saturation", &saturation));
-        OP_REQUIRES_OK(context, context->GetAttr("value", &value));
+        OP_REQUIRES_OK(context, context->GetAttr("brightness", &brightness));
 
         // get gamma correction range
         OP_REQUIRES_OK(context, context->GetAttr("gamma_corr", &gammaCorrection));
-        if (gammaCorrection < 0 || gammaCorrection > 0.5)
-            context->CtxFailure(errors::InvalidArgument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.5] range."));
+        if (gammaCorrection < 0 || gammaCorrection > 0.9)
+            context->CtxFailure(errors::InvalidArgument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.9] range."));
 
         // get current device number
         int device;
@@ -210,7 +210,7 @@ public:
             mixShift(-0.1f, 0.1f),
             hueShift(-hue, hue),
             saturationFactor(1 - saturation, 1 + saturation),
-            valueFactor(1 - value, 1 + value),
+            brightnessFactor(1 - brightness, 1 + brightness),
             gammaCorrFactor(1 - gammaCorrection, 1 + gammaCorrection);
         std::uniform_int_distribution<size_t>
             flipping(0, 1), mixIdx(1, batchSize - 1);
@@ -221,7 +221,7 @@ public:
             auto &img = paramsCpu[i];
 
             // color correction
-            setColorTransform(img, hueShift(rnd), saturationFactor(rnd), valueFactor(rnd));
+            setColorTransform(img, hueShift(rnd), saturationFactor(rnd), brightnessFactor(rnd));
             img.gammaCorr = gammaCorrFactor(rnd);
 
             // geometric transform (homography)
@@ -351,7 +351,7 @@ REGISTER_OP("Augment")
     .Attr("flip_vertically:   bool = false")
     .Attr("hue:               float = 0")
     .Attr("saturation:        float = 0")
-    .Attr("value:             float = 0")
+    .Attr("brightness:        float = 0")
     .Attr("gamma_corr:        float = 0")
     .Attr("cutout_prob:       float = 0")
     .Attr("cutout_size:       list(float) = [0]")
@@ -368,7 +368,7 @@ REGISTER_OP("Augment")
             - in-plane image rotation and scaling,
             - translation,
             - gamma correction,
-            - hue, saturation and value correction,
+            - hue, saturation and brightness correction,
             - mixup,
             - CutOut.
 
@@ -393,7 +393,7 @@ REGISTER_OP("Augment")
                                 A hue shift of +/-120 degrees transforms green in red/blue and vice versa.
             saturation:         Color saturation factor range. For every input image, the color saturation is scaled by a random factor sampled in range `[1 - saturation, 1 + saturation]`.
                                 Applying zero saturation scale produces a grayscale image.
-            value:              Value (brightness) factor range. For every input image, the intensity is scaled by a random factor sampled in range `[1 - value, 1 + value]`.
+            brightness:         Brightness factor range. For every input image, the intensity is scaled by a random factor sampled in range `[1 - brightness, 1 + brightness]`.
             gamma_corr:         Gamma correction factor range. For every input image, the factor value is randomly sampled in range `[1 - gamma_corr, 1 + gamma_corr]`.
                                 Gamma correction boosts (for factors below 1) or reduces (for factors above 1) dark image areas intensity, while bright areas are less affected.
             cutout_prob:        Probability of CutOut being applied to a given input image.
