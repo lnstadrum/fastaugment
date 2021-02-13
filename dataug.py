@@ -34,6 +34,19 @@ BYPASS_PARAMS = {
 
 @tf.autograph.experimental.do_not_convert
 def center_crop(x, size, translation=0):
+    """ Helper function sampling the center crop of maximum size from a given image.
+    This can be useful when constructing batches from a set of images of different sizes trying to maximize the sampled area.
+    The output is sampled by taking the maximum area fitting into the input image bounds, but keeping a given output aspect ratio.
+    The output size in pixels is fixed and does not depend on the input image size.
+    By default, i.e. with `translation=0`, the output image center matches the input image center. Otherwise, the output image sampling area is randomly shifted
+    according to the given `translation` value and may fall out of the input image area. The corresponding output pixels are filled with gray.
+    Bilinear interpolation is used to compute the output pixels values.
+
+    Args:
+        x:              Input image tensor  of `uint8` type in channels-last (HWC) layout. The color input images are supported only (C=3).
+        size:           A list or tuple `(W, H)` specifying the output image size in pixels.
+        translation:    Normalized image translation range along X and Y axis. `0.1` corresponds to a random shift by at most 10% of the image size in both directions.
+    """
     x, _ = lib.Augment(input=x,
                        input_labels=empty_tensor,
                        output_size=size,
@@ -49,7 +62,7 @@ def augment(x, y=None,
             translation=0.1,
             scale=0.1,
             prescale=1,
-            rotation=10,
+            rotation=15,
             perspective=20,
             cutout_prob=0.5,
             cutout_size=(0.3, 0.5),
