@@ -5,6 +5,7 @@ project(FastAugment)
 find_package(CUDA REQUIRED)
 
 # query compilation options from TensorFlow
+message(STATUS "Querying TensorFlow for compilation options")
 execute_process(COMMAND python3 -c "import tensorflow.sysconfig as c; print(c.get_include(), end='')"
                 OUTPUT_VARIABLE TF_INCLUDE_DIRS)
 execute_process(COMMAND python3 -c "import tensorflow.sysconfig as c; print(' '.join(c.get_compile_flags()), end='')"
