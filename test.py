@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '10'
 
-from fast_augment import augment, set_seed, Augment, BYPASS_PARAMS
+from fast_augment import augment, Augment, BYPASS_PARAMS
 import numpy
 import tensorflow as tf
 import unittest
@@ -116,37 +116,29 @@ class SeedTests(tf.test.TestCase):
         input_proba = tf.one_hot(input_labels, 20, dtype=tf.float32)
 
         # generate output batches
-        set_seed(123)
-        output_batch1, output_proba1 = augment(input_batch, input_proba)
-        output_batch2, output_proba2 = augment(input_batch, input_proba)
-        set_seed(234)
-        output_batch3, output_proba3 = augment(input_batch, input_proba)
-        set_seed(123)
-        output_batch4, output_proba4 = augment(input_batch, input_proba)
+        output_batch1, output_proba1 = augment(input_batch, input_proba, seed=123)
+        output_batch2, output_proba2 = augment(input_batch, input_proba, seed=234)
+        output_batch3, output_proba3 = augment(input_batch, input_proba, seed=123)
 
         # compare
         self.assertNotAllEqual(output_batch1, output_batch2)
         self.assertNotAllEqual(output_proba1, output_proba2)
-        self.assertNotAllEqual(output_batch1, output_batch3)
-        self.assertNotAllEqual(output_proba1, output_proba3)
-        self.assertAllEqual(output_batch1, output_batch4)
-        self.assertAllEqual(output_proba1, output_proba4)
+        self.assertAllEqual(output_batch1, output_batch3)
+        self.assertAllEqual(output_proba1, output_proba3)
 
 
 
 class DatatypeTests(tf.test.TestCase):
     """ Datatype verification
     """
-    def test_uint8(self):
+    def test_uint8_vs_float32(self):
         # make random input
         input_batch = tf.random.uniform((64, 32, 32, 3), maxval=255)
         input_batch = tf.cast(input_batch, tf.uint8)
 
         # apply identity transformation
-        set_seed(96)
-        output_batch_ref = augment(input_batch, output_type=tf.uint8)
-        set_seed(96)
-        output_batch_float = augment(input_batch, output_type=tf.float32)
+        output_batch_ref = augment(input_batch, output_type=tf.uint8, seed=96)
+        output_batch_float = augment(input_batch, output_type=tf.float32, seed=96)
 
         # check output types
         self.assertTrue(output_batch_ref.dtype == tf.uint8)

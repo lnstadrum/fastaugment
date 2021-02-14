@@ -23,8 +23,6 @@ using namespace tensorflow;
 
 
 static const float pi = 3.141592653589f;
-static std::random_device randomDevice;
-static std::default_random_engine rnd(randomDevice());
 
 
 template<class Device, typename in_t, typename out_t>
@@ -46,6 +44,7 @@ class DataugOpKernel : public OpKernel {
     float gammaCorrection;                      //!< gamma correction range
     bool flipHorizontally, flipVertically;      //!< if `true`, the image is flipped with 50% chance along a specific direction
     bool isotropicScaling;                      //!< if `true`, the scale factor is the same along X and Y direction
+    int seed;                                   //!< random seed; not applied if zero
 
     size_t getPair(OpKernelConstruction* context, const char* attribute, float&a, float& b) {
         std::vector<float> listArg;
@@ -118,6 +117,9 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("gamma_corr", &gammaCorrection));
         if (gammaCorrection < 0 || gammaCorrection > 0.9)
             context->CtxFailure(errors::InvalidArgument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.9] range."));
+
+        // get random seed
+        OP_REQUIRES_OK(context, context->GetAttr("seed", &seed));
 
         // get current device number
         int device;
@@ -195,6 +197,8 @@ public:
         // prepare parameters samplers
         std::vector<Params> paramsCpu;
         paramsCpu.resize(batchSize);
+        static std::random_device randomDevice;
+        std::default_random_engine rnd(seed == 0 ? randomDevice() : seed);
         std::uniform_real_distribution<float>
             xShiftFactor(-translation[0], translation[0]),
             yShiftFactor(-translation[1], translation[1]),
@@ -311,27 +315,12 @@ public:
 };
 
 
-class SeedOpKernel : public OpKernel {
-    int seed;
-public:
-    explicit SeedOpKernel(OpKernelConstruction* context) : OpKernel(context) {
-        OP_REQUIRES_OK(context, context->GetAttr("seed", &seed));
-    }
-
-    void Compute(OpKernelContext* context) {
-        rnd = std::default_random_engine(seed);
-    }
-};
-
-
 // Register operations kernels
 #define REGISTER_KERNEL(IN_T, OUT_T) \
     REGISTER_KERNEL_BUILDER(Name("Augment").Device(DEVICE_GPU).TypeConstraint<OUT_T>("output_type").HostMemory("input_labels").HostMemory("output_labels"), DataugOpKernel<Eigen::GpuDevice, IN_T, OUT_T>)
 
 REGISTER_KERNEL(uint8_t, float);
 REGISTER_KERNEL(uint8_t, uint8_t);
-
-REGISTER_KERNEL_BUILDER(Name("SetSeed").Device(DEVICE_CPU), SeedOpKernel);
 
 
 // Register operations
@@ -357,6 +346,7 @@ REGISTER_OP("Augment")
     .Attr("cutout_size:       list(float) = [0]")
     .Attr("mixup_prob:        float = 0")
     .Attr("mixup_alpha:       float = 0.4")
+    .Attr("seed:              int = 0")
     .Doc(R"doc(
         Applies a set of random geometry and color transformations to images in a batch.
         The applied transformation differs from one image to another one in the same batch. Transformations parameters are sampled from uniform distributions of given ranges.
@@ -403,6 +393,7 @@ REGISTER_OP("Augment")
             mixup_prob:         Probability of mixup being applied to a given input image.
                                 Mixup is applied across the batch. Every two mixed images undergo the same set of other transformations except flipping which can be different.
             mixup_alpha:        Mixup `alpha` parameter. See the original paper for more details: https://arxiv.org/pdf/1710.09412.pdf
+            seed:               Random seed. If different from 0, reproduces the same sequence of transformations for a given set of parameters and input size.
 
         Returns:
             A `Tensor` with a set of transformations applied to the input image or batch, and another `Tensor` containing the image labels in one-hot format.
@@ -440,13 +431,3 @@ REGISTER_OP("Augment")
 
         return Status::OK();
     });
-
-
-REGISTER_OP("SetSeed")
-    .Attr("seed: int")
-    .Doc(R"doc(
-        Sets a random seed for transformations parameters samplers.
-        Setting the seed value ensures that subsequent calls to `Augment` op produce the same sequence of transformations.
-        Once the seed is fixed, different calls to `Augment` still produce different transformations.
-        However, after reseting the seed back to the same value, `Augment` replays the same set of transformations being called on the same sequence of inputs.
-    )doc");

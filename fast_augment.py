@@ -73,7 +73,8 @@ def augment(x, y=None,
             brightness=0.1,
             gamma_corr=0.2,
             flip_horizontally=True,
-            flip_vertically=False):
+            flip_vertically=False,
+            seed=0):
     listify = lambda it : it if isinstance(it, list) or isinstance(it, tuple) else [it]
     x_, y_ = lib.Augment(input=x,
                          input_labels=empty_tensor if y is None else y,
@@ -93,11 +94,9 @@ def augment(x, y=None,
                          brightness=brightness,
                          gamma_corr=gamma_corr,
                          flip_horizontally=flip_horizontally,
-                         flip_vertically=flip_vertically)
+                         flip_vertically=flip_vertically,
+                         seed=seed)
     if y is None:
         return x_
     return x_, y_
 
-
-def set_seed(seed):
-    lib.set_seed(seed)
