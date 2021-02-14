@@ -100,3 +100,54 @@ def augment(x, y=None,
         return x_
     return x_, y_
 
+
+class Augment(tf.keras.layers.Layer):
+    """ Data augmentation layer.
+    Wraps `augment()` function.
+
+    Args:
+        training_only:      If set to `True`, the data augmentation is only applied during training and is bypassed otherwise.
+                            Useful when the layer makes part of the actual model to train.
+        **kwargs:           Data augmentation parameters. Same as `augment()` function parameters.
+    """
+
+    def __init__(self, training_only, **kwargs):
+        self.training_only = training_only
+
+        # keep kwargs to call augment()
+        self.args = kwargs
+
+        # remove name from it, if any
+        name = self.args.pop('name', None)
+
+        # set default output_type
+        self.output_type = self.args.pop('output_type', tf.float32)
+
+        # call superclass constructor
+        super().__init__(name=name)
+
+
+    def call(self, inputs, training=None):
+        if isinstance(inputs, list):
+            assert len(inputs) == 2, "Augment layer expects at most 2 input tensors"
+            images, prob = inputs[0], inputs[1]
+        else:
+            images, prob = inputs, None
+
+        # run augment if training
+        if training or not self.training_only:
+            return augment(x=images, y=prob, output_type=self.output_type, **self.args)
+
+        # bypass otherwise, but cast to the same output_type to avoid type mismatch
+        images = tf.cast(images, self.output_type)
+        if prob is None:
+            return images
+        else:
+            return images, prob
+
+
+    def get_config(self):
+        config = super().get_config()
+        config.update(self.args)
+        config['output_type'] = str(self.output_type)
+        return config

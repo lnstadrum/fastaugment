@@ -4,6 +4,7 @@ os.environ['TF_CPP_MIN_LOG_LEVEL'] = '10'
 from fast_augment import augment, Augment, BYPASS_PARAMS
 import numpy
 import tensorflow as tf
+import tempfile
 import unittest
 
 
@@ -147,6 +148,91 @@ class DatatypeTests(tf.test.TestCase):
         # cast back to uint8 and compare: expected same output
         output_batch_test = tf.cast(255 * tf.clip_by_value(output_batch_float, 0, 1), tf.uint8)
         self.assertAllEqual(output_batch_ref, output_batch_test)
+
+
+class KerasLayerTests(tf.test.TestCase):
+    """ Testing Augment keras layer
+    """
+    def test_fitting_and_export(self):
+        # build a model
+        model = tf.keras.Sequential([
+            tf.keras.layers.Input(shape=(32, 32, 3), dtype=tf.uint8),
+            Augment(training_only=True, mixup_prob=0),
+            tf.keras.layers.Conv2D(10, kernel_size=5, strides=2),
+            tf.keras.layers.ReLU(),
+            tf.keras.layers.GlobalAveragePooling2D(),
+            tf.keras.layers.Flatten()
+        ])
+        model.compile(loss='categorical_crossentropy')
+
+        # make random input
+        images = tf.random.uniform((20, 32, 32, 3), maxval=255)
+        images = tf.cast(images, tf.uint8)
+
+        # make random labels
+        labels = tf.random.uniform((images.shape[0],), minval=0, maxval=2, dtype=tf.int32)
+        proba = tf.one_hot(labels, 10, dtype=tf.float32)
+
+        # fit
+        model.fit(x=images, y=proba, verbose=False)
+
+        # save and load
+        with tempfile.TemporaryDirectory() as tmp:
+            path = os.path.join(tmp, '.hdf5')
+            model.save(path)
+            model = tf.keras.models.load_model(path)
+
+
+    def test_in_model(self):
+        # create input layers for images and labels
+        x_in = tf.keras.layers.Input(shape=(224, 224, 3), dtype=tf.uint8)
+        y_in = tf.keras.layers.Input(shape=(1000), dtype=tf.float32)
+
+        # add augmentation layer
+        x_out, y_out = Augment(training_only=False, seed=111)([x_in, y_in])
+
+        # build a model
+        model = tf.keras.models.Model(inputs=[x_in, y_in], outputs=[x_out, y_out])
+
+        # make random input
+        input_images = tf.random.uniform((5, 224, 224, 3), maxval=255)
+        input_images = tf.cast(input_images, tf.uint8)
+        input_prob = tf.random.uniform((5,), maxval=2, dtype=tf.int32)
+        input_prob = tf.one_hot(input_prob, 1000)
+
+        # run prediction
+        output_images_test, output_prob_test = model.predict([input_images, input_prob])
+
+        # generate reference
+        output_images_ref, output_prob_ref = augment(x=input_images, y=input_prob, seed=111)
+
+        # compare
+        self.assertAllEqual(output_images_test, output_images_ref)
+        self.assertAllEqual(output_prob_test, output_prob_ref)
+
+
+    def test_in_model_without_labels(self):
+        # create input layer
+        x_in = tf.keras.layers.Input(shape=(224, 224, 3), dtype=tf.uint8)
+
+        # add augmentation layer
+        x_out = Augment(training_only=False, mixup_prob=0, seed=111)(x_in)
+
+        # build a model
+        model = tf.keras.models.Model(inputs=x_in, outputs=x_out)
+
+        # make random input
+        input_images = tf.random.uniform((5, 224, 224, 3), maxval=255)
+        input_images = tf.cast(input_images, tf.uint8)
+
+        # run prediction
+        output_images = model.predict(input_images)
+
+        # generate reference
+        output_images_ref = augment(x=input_images, mixup_prob=0, seed=111)
+
+        # compare
+        self.assertAllEqual(output_images, output_images_ref)
 
 
 if __name__ == '__main__':
