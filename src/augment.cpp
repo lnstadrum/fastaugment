@@ -194,6 +194,10 @@ public:
         }
         const float* inputLabelsPtr = noLabels ? nullptr : context->input(1).flat<float>().data();
 
+        // check if no labels but mixup
+        if (noLabels)
+            OP_REQUIRES(context, mixupProb == 0, errors::InvalidArgument("Cannot apply mixup: input class probabilities are not provided"));
+
         // prepare parameters samplers
         std::vector<Params> paramsCpu;
         paramsCpu.resize(batchSize);

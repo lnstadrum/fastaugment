@@ -12,13 +12,13 @@ class ShapeTests(unittest.TestCase):
     """
     def test_default_output_size(self):
         input_batch = tf.zeros((5, 123, 234, 3), dtype=tf.uint8)
-        output_batch = augment(input_batch)
+        output_batch = augment(input_batch, mixup_prob=0)
         self.assertEqual(output_batch.shape, input_batch.shape)
 
     def test_specific_output_size(self):
         input_batch = tf.zeros((7, 55, 66, 3), dtype=tf.uint8)
         width, height = 88, 77
-        output_batch = augment(input_batch, output_size=[width, height])
+        output_batch = augment(input_batch, output_size=[width, height], mixup_prob=0)
         self.assertEqual(output_batch.shape, (7, height, width, 3))
 
 
@@ -137,8 +137,8 @@ class DatatypeTests(tf.test.TestCase):
         input_batch = tf.cast(input_batch, tf.uint8)
 
         # apply identity transformation
-        output_batch_ref = augment(input_batch, output_type=tf.uint8, seed=96)
-        output_batch_float = augment(input_batch, output_type=tf.float32, seed=96)
+        output_batch_ref = augment(input_batch, output_type=tf.uint8, mixup_prob=0, seed=96)
+        output_batch_float = augment(input_batch, output_type=tf.float32, mixup_prob=0, seed=96)
 
         # check output types
         self.assertTrue(output_batch_ref.dtype == tf.uint8)
