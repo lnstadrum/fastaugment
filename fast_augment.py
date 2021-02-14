@@ -5,9 +5,9 @@ import os
 # loading the library
 script_dir = os.path.dirname(os.path.realpath(__file__))
 try:
-    lib = tf.load_op_library(os.path.join(script_dir, 'libdataug.so'))
+    lib = tf.load_op_library(os.path.join(script_dir, 'libfastaugment.so'))
 except:
-    lib = tf.load_op_library(os.path.join(script_dir, 'build', 'libdataug.so'))
+    lib = tf.load_op_library(os.path.join(script_dir, 'build', 'libfastaugment.so'))
 
 
 # empty tensor placeholder

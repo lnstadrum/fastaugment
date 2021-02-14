@@ -1,5 +1,5 @@
 cmake_minimum_required(VERSION 3.2.1)
-project(Augment)
+project(FastAugment)
 
 # find CUDA
 find_package(CUDA REQUIRED)
@@ -18,7 +18,7 @@ set(CUDA_NVCC_FLAGS "${CUDA_NVCC_FLAGS} -std=c++14")
 include_directories(${TF_INCLUDE_DIRS})
 
 # add library
-CUDA_ADD_LIBRARY(dataug
+CUDA_ADD_LIBRARY(fastaugment
     ${CMAKE_CURRENT_LIST_DIR}/src/augment.cpp
     ${CMAKE_CURRENT_LIST_DIR}/src/augment.cu
     SHARED)

@@ -7,7 +7,7 @@ import tensorflow as tf
 import tensorflow_datasets as tfds
 import timeit
 
-from dataug import center_crop, augment
+from fast_augment import center_crop, augment
 
 
 # benchmark on a synthetic input

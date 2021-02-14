@@ -1,7 +1,7 @@
 import os
 os.environ['TF_CPP_MIN_LOG_LEVEL'] = '10'
 
-from dataug import augment, set_seed, BYPASS_PARAMS
+from fast_augment import augment, set_seed, Augment, BYPASS_PARAMS
 import numpy
 import tensorflow as tf
 import unittest
