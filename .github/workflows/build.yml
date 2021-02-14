@@ -1,0 +1,26 @@
+name: Build
+
+on:
+  # trigger on pushes
+  push:
+    branches: [ main ]
+  # trigger on PRs
+  pull_request:
+    branches: main
+  # trigger weekly, as far as tensorflow:latest-gpu
+  schedule:
+    - cron: '5 9 * * SAT'
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v2
+        with:
+          path: fastaugment
+          ref: ${{ github.ref }}
+          submodules: recursive
+
+      - name: Build
+        uses: ./fastaugment
