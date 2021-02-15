@@ -13,13 +13,13 @@ class ShapeTests(unittest.TestCase):
     """
     def test_default_output_size(self):
         input_batch = tf.zeros((5, 123, 234, 3), dtype=tf.uint8)
-        output_batch = augment(input_batch, mixup_prob=0)
+        output_batch = augment(input_batch)
         self.assertEqual(output_batch.shape, input_batch.shape)
 
     def test_specific_output_size(self):
         input_batch = tf.zeros((7, 55, 66, 3), dtype=tf.uint8)
         width, height = 88, 77
-        output_batch = augment(input_batch, output_size=[width, height], mixup_prob=0)
+        output_batch = augment(input_batch, output_size=[width, height])
         self.assertEqual(output_batch.shape, (7, height, width, 3))
 
 
@@ -53,8 +53,8 @@ class ColorTests(tf.test.TestCase):
                                saturation=0,
                                brightness=0,
                                gamma_corr=0,
-                               cutout_prob=0,
-                               mixup_prob=0)
+                               cutout=0,
+                               mixup=0)
 
         # compare center pixel colors: expected same
         self.assertAllEqual(output_batch[:,8,8,:], input_batch[:,8,8,:])
@@ -70,7 +70,7 @@ class MixupLabelsTests(tf.test.TestCase):
         input_labels = tf.random.uniform((8, 1000))
 
         # apply random transformation
-        _, output_labels = augment(input_batch, input_labels, mixup_prob=0)
+        _, output_labels = augment(input_batch, input_labels)
 
         # compare labels: expected same
         self.assertAllEqual(input_labels, output_labels)
@@ -88,16 +88,16 @@ class MixupLabelsTests(tf.test.TestCase):
 
         # apply mixup
         output_batch, output_proba = augment(input_batch,
-                                              input_proba,
-                                              rotation=0,
-                                              flip_vertically=True,
-                                              flip_horizontally=True,
-                                              hue=0,
-                                              saturation=0,
-                                              brightness=0,
-                                              gamma_corr=0,
-                                              cutout_prob=0,
-                                              mixup_prob=0.9)
+                                             input_proba,
+                                             rotation=0,
+                                             flip_vertically=True,
+                                             flip_horizontally=True,
+                                             hue=0,
+                                             saturation=0,
+                                             brightness=0,
+                                             gamma_corr=0,
+                                             cutout=0,
+                                             mixup=0.9)
 
         # check that probabilities sum up to 1
         self.assertAllClose(output_proba[:,0] + output_proba[:, 1], tf.ones((50)))
@@ -117,9 +117,9 @@ class SeedTests(tf.test.TestCase):
         input_proba = tf.one_hot(input_labels, 20, dtype=tf.float32)
 
         # generate output batches
-        output_batch1, output_proba1 = augment(input_batch, input_proba, seed=123)
-        output_batch2, output_proba2 = augment(input_batch, input_proba, seed=234)
-        output_batch3, output_proba3 = augment(input_batch, input_proba, seed=123)
+        output_batch1, output_proba1 = augment(input_batch, input_proba, mixup=0.75, seed=123)
+        output_batch2, output_proba2 = augment(input_batch, input_proba, mixup=0.75, seed=234)
+        output_batch3, output_proba3 = augment(input_batch, input_proba, mixup=0.75, seed=123)
 
         # compare
         self.assertNotAllEqual(output_batch1, output_batch2)
@@ -138,8 +138,8 @@ class DatatypeTests(tf.test.TestCase):
         input_batch = tf.cast(input_batch, tf.uint8)
 
         # apply identity transformation
-        output_batch_ref = augment(input_batch, output_type=tf.uint8, mixup_prob=0, seed=96)
-        output_batch_float = augment(input_batch, output_type=tf.float32, mixup_prob=0, seed=96)
+        output_batch_ref = augment(input_batch, output_type=tf.uint8, seed=96)
+        output_batch_float = augment(input_batch, output_type=tf.float32, seed=96)
 
         # check output types
         self.assertTrue(output_batch_ref.dtype == tf.uint8)
@@ -157,7 +157,7 @@ class KerasLayerTests(tf.test.TestCase):
         # build a model
         model = tf.keras.Sequential([
             tf.keras.layers.Input(shape=(32, 32, 3), dtype=tf.uint8),
-            Augment(training_only=True, mixup_prob=0),
+            Augment(training_only=True),
             tf.keras.layers.Conv2D(10, kernel_size=5, strides=2),
             tf.keras.layers.ReLU(),
             tf.keras.layers.GlobalAveragePooling2D(),
@@ -189,7 +189,7 @@ class KerasLayerTests(tf.test.TestCase):
         y_in = tf.keras.layers.Input(shape=(1000), dtype=tf.float32)
 
         # add augmentation layer
-        x_out, y_out = Augment(training_only=False, seed=111)([x_in, y_in])
+        x_out, y_out = Augment(training_only=False, mixup=0.75, seed=111)([x_in, y_in])
 
         # build a model
         model = tf.keras.models.Model(inputs=[x_in, y_in], outputs=[x_out, y_out])
@@ -204,7 +204,7 @@ class KerasLayerTests(tf.test.TestCase):
         output_images_test, output_prob_test = model.predict([input_images, input_prob])
 
         # generate reference
-        output_images_ref, output_prob_ref = augment(x=input_images, y=input_prob, seed=111)
+        output_images_ref, output_prob_ref = augment(x=input_images, y=input_prob, mixup=0.75, seed=111)
 
         # compare
         self.assertAllEqual(output_images_test, output_images_ref)
@@ -216,7 +216,7 @@ class KerasLayerTests(tf.test.TestCase):
         x_in = tf.keras.layers.Input(shape=(224, 224, 3), dtype=tf.uint8)
 
         # add augmentation layer
-        x_out = Augment(training_only=False, mixup_prob=0, seed=111)(x_in)
+        x_out = Augment(training_only=False, seed=111)(x_in)
 
         # build a model
         model = tf.keras.models.Model(inputs=x_in, outputs=x_out)
@@ -229,7 +229,7 @@ class KerasLayerTests(tf.test.TestCase):
         output_images = model.predict(input_images)
 
         # generate reference
-        output_images_ref = augment(x=input_images, mixup_prob=0, seed=111)
+        output_images_ref = augment(x=input_images, seed=111)
 
         # compare
         self.assertAllEqual(output_images, output_images_ref)

@@ -32,7 +32,7 @@ data = data.map(lambda x: [
 # apply augmentation
 batch_size = 20
 data = data.batch(batch_size).map(
-    lambda x, y: augment(x, y)
+    lambda x, y: augment(x, y, mixup=0.5)
 )
 
 # take a batch

@@ -351,58 +351,6 @@ REGISTER_OP("Augment")
     .Attr("mixup_prob:        float = 0")
     .Attr("mixup_alpha:       float = 0.4")
     .Attr("seed:              int = 0")
-    .Doc(R"doc(
-        Applies a set of random geometry and color transformations to images in a batch.
-        The applied transformation differs from one image to another one in the same batch. Transformations parameters are sampled from uniform distributions of given ranges.
-        Every image is sampled only once through a bilinear interpolator.
-
-        Transformation application order:
-            - horizontal and/or vertical flipping,
-            - perspective distortion,
-            - in-plane image rotation and scaling,
-            - translation,
-            - gamma correction,
-            - hue, saturation and brightness correction,
-            - mixup,
-            - CutOut.
-
-        Args:
-            input:              A `Tensor` of `uint8` type containing an input image or batch in channels-last layout (`HWC` or `NHWC`). 3-channel color images are expected (`C=3`).
-            input_labels:       A `Tensor` of `float32` type containing input labels in one-hot format.
-                                Optional, can be empty. If not empty, its outermost dimension is expected to match the batch size.
-            output_size:        A list `[W, H]` specifying the output batch width and height in pixels. If not specified or empty, the input size is kept.
-            output_dtype:       Output images datatype. Can be `float32` or `uint8`.
-            translation:        Normalized image translation range along X and Y axis. `0.1` corresponds to a random shift by at most 10% of the image size in both directions.
-                                If one value given, the same range applies for X and Y axes. If empty, no translation is applied.
-            scale:              Scaling factor range along X and Y axes. `0.1` corresponds to stretching the images by a random factor of at most 10%.
-                                If one value given, the applied scaling keeps the aspect ratio: the same factor is used along X and Y axes. If empty, no scaling is applied.
-            prescale:           A constant scaling factor applied to all images. Can be used to shift the random scaling distribution from its default average equal to 1 and crop out image borders.
-            rotation:           Rotation angle range in degrees. The images are rotated in both clockwise and counter-clockwise direction by a random angle less than `rotation`.
-            perspective:        Perspective distortion range setting the maximum tilting and panning angles in degrees.
-                                The image plane is rotated in 3D around X and Y axes (tilt and pan respectively) by random angles smaller than the given value(s).
-                                If one number is given, the same range applies for both axes. If empty, no perspective distoriton is induced.
-            flip_horizontally:  A boolean. If `True`, the images are flipped horizontally with 50% chance.
-            flip_vertically:    A boolean. If `True`, the images are flipped vertically with 50% chance.
-            hue:                Hue shift range in degrees. The image pixels color hues are shifted by a random angle smaller than `hue`.
-                                A hue shift of +/-120 degrees transforms green in red/blue and vice versa.
-            saturation:         Color saturation factor range. For every input image, the color saturation is scaled by a random factor sampled in range `[1 - saturation, 1 + saturation]`.
-                                Applying zero saturation scale produces a grayscale image.
-            brightness:         Brightness factor range. For every input image, the intensity is scaled by a random factor sampled in range `[1 - brightness, 1 + brightness]`.
-            gamma_corr:         Gamma correction factor range. For every input image, the factor value is randomly sampled in range `[1 - gamma_corr, 1 + gamma_corr]`.
-                                Gamma correction boosts (for factors below 1) or reduces (for factors above 1) dark image areas intensity, while bright areas are less affected.
-            cutout_prob:        Probability of CutOut being applied to a given input image.
-                                CutOut erases a randomly placed rectangular area of an image. See the original paper for more details: https://arxiv.org/pdf/1708.04552.pdf
-            cutout_size:        A list specifying the normalized size range CutOut area width and height are sampled from.
-                                `[0.4, 0.5]` range produces a rectangle of 40% to 50% of image size on every side. If empty list is passed, CutOut application is disabled.
-            mixup_prob:         Probability of mixup being applied to a given input image.
-                                Mixup is applied across the batch. Every two mixed images undergo the same set of other transformations except flipping which can be different.
-            mixup_alpha:        Mixup `alpha` parameter. See the original paper for more details: https://arxiv.org/pdf/1710.09412.pdf
-            seed:               Random seed. If different from 0, reproduces the same sequence of transformations for a given set of parameters and input size.
-
-        Returns:
-            A `Tensor` with a set of transformations applied to the input image or batch, and another `Tensor` containing the image labels in one-hot format.
-    )doc")
-
     .SetShapeFn([](::tensorflow::shape_inference::InferenceContext* ctx) {
         auto inputRank = ctx->Rank(ctx->input(0));
         if (inputRank != 3 && inputRank != 4)
