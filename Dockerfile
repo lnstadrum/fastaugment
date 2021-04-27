@@ -15,5 +15,5 @@ RUN cd /opt/fastaugment &&\
 ENV PYTHONPATH=$PYTHONPATH:/opt/fastaugment
 
 # try to import the module in Python
-ENTRYPOINT python3 -c "import fast_augment; print('Yay!')"
+RUN python3 -c "import fast_augment; print('Yay!')"
 
