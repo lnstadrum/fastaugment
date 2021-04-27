@@ -108,6 +108,12 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
     float g = imgParams.color[1][0] * sample.x + imgParams.color[1][1] * sample.y + imgParams.color[1][2] * sample.z;
     float b = imgParams.color[2][0] * sample.x + imgParams.color[2][1] * sample.y + imgParams.color[2][2] * sample.z;
 
+    if (imgParams.flags & FLAG_COLOR_INVERSION) {
+        r = 1 - r;
+        g = 1 - g;
+        b = 1 - b;
+    }
+
     // write out
     unsigned int i = 3 * ((blockIdx.z * height + y) * width + x);
     store(out[i    ], r);

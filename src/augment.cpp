@@ -42,6 +42,7 @@ class DataugOpKernel : public OpKernel {
     float saturation;                           //!< saturation factor range
     float brightness;                           //!< brightness range
     float gammaCorrection;                      //!< gamma correction range
+    bool colorInversion;                        //!< if `true`, colors in every image are inverted with 50% chance
     bool flipHorizontally, flipVertically;      //!< if `true`, the image is flipped with 50% chance along a specific direction
     bool isotropicScaling;                      //!< if `true`, the scale factor is the same along X and Y direction
     int seed;                                   //!< random seed; not applied if zero
@@ -117,6 +118,8 @@ public:
         OP_REQUIRES_OK(context, context->GetAttr("gamma_corr", &gammaCorrection));
         if (gammaCorrection < 0 || gammaCorrection > 0.9)
             context->CtxFailure(errors::InvalidArgument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.9] range."));
+
+        OP_REQUIRES_OK(context, context->GetAttr("color_inversion", &colorInversion));
 
         // get random seed
         OP_REQUIRES_OK(context, context->GetAttr("seed", &seed));
@@ -227,10 +230,13 @@ public:
         // sample transformation parameters
         for (size_t i = 0; i < paramsCpu.size(); ++i) {
             auto &img = paramsCpu[i];
+            img.flags = 0;
 
             // color correction
             setColorTransform(img, hueShift(rnd), saturationFactor(rnd), brightnessFactor(rnd));
             img.gammaCorr = gammaCorrFactor(rnd);
+            if (colorInversion)
+                img.flags += FLAG_COLOR_INVERSION * flipping(rnd);
 
             // geometric transform (homography)
             const float
@@ -241,9 +247,8 @@ public:
             // translation and flipping
             img.translation[0] = xShiftFactor(rnd);
             img.translation[1] = yShiftFactor(rnd);
-            img.flags = 0;
             if (flipHorizontally)
-                img.flags = FLAG_HORIZONTAL_FLIP * flipping(rnd) + FLAG_MIX_HORIZONTAL_FLIP * flipping(rnd);
+                img.flags += FLAG_HORIZONTAL_FLIP * flipping(rnd) + FLAG_MIX_HORIZONTAL_FLIP * flipping(rnd);
             if (flipVertically)
                 img.flags += FLAG_VERTICAL_FLIP * flipping(rnd) + FLAG_MIX_VERTICAL_FLIP * flipping(rnd);
 
@@ -346,6 +351,7 @@ REGISTER_OP("Augment")
     .Attr("saturation:        float = 0")
     .Attr("brightness:        float = 0")
     .Attr("gamma_corr:        float = 0")
+    .Attr("color_inversion:   bool = false")
     .Attr("cutout_prob:       float = 0")
     .Attr("cutout_size:       list(float) = [0]")
     .Attr("mixup_prob:        float = 0")

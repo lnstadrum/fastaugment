@@ -59,6 +59,19 @@ class ColorTests(tf.test.TestCase):
         # compare center pixel colors: expected same
         self.assertAllEqual(output_batch[:,8,8,:], input_batch[:,8,8,:])
 
+    def test_color_inversion(self):
+        # make random input
+        input_batch = tf.zeros((5, 23, 45, 3), tf.uint8)
+
+        # apply color inversion only
+        params = BYPASS_PARAMS.copy()
+        params['color_inversion'] = True
+        output_batch = augment(input_batch, output_type=tf.uint8, **params)
+
+        # compare colors
+        comp = numpy.logical_xor(input_batch == output_batch, input_batch == 255 - output_batch)
+        self.assertTrue(numpy.all(comp))
+
 
 class MixupLabelsTests(tf.test.TestCase):
     """ Tests of labels computation with mixup

@@ -28,7 +28,8 @@ BYPASS_PARAMS = {
     'saturation'       : 0,
     'brightness'       : 0,
     'hue'              : 0,
-    'gamma_corr'       : 0
+    'gamma_corr'       : 0,
+    'color_inversion'  : False
 }
 
 
@@ -72,6 +73,7 @@ def augment(x, y=None,
             saturation=0.4,
             brightness=0.1,
             gamma_corr=0.2,
+            color_inversion=False,
             flip_horizontally=True,
             flip_vertically=False,
             seed=0):
@@ -87,6 +89,7 @@ def augment(x, y=None,
             - translation,
             - gamma correction,
             - hue, saturation and brightness correction,
+            - color inversion,
             - mixup,
             - CutOut.
 
@@ -116,6 +119,7 @@ def augment(x, y=None,
             gamma_corr:         Gamma correction factor range. For every input image, the factor value is randomly sampled in range `[1 - gamma_corr, 1 + gamma_corr]`.
                                 Gamma correction boosts (for factors below 1) or reduces (for factors above 1) dark image areas intensity, while bright areas are less affected.
                                 The default value is 0.2.
+            color_inversion:    A boolean. If `True`, colors of all pixels in every image are inverted (negated) with 50% chance. Default: False.
             cutout:             Probability of CutOut being applied to a given input image. The default value is 0.5.
                                 CutOut erases a randomly placed rectangular area of an image. See the original paper for more details: https://arxiv.org/pdf/1708.04552.pdf
             cutout_size:        A list specifying the normalized size range CutOut area width and height are sampled from.
@@ -147,6 +151,7 @@ def augment(x, y=None,
                          saturation=saturation,
                          brightness=brightness,
                          gamma_corr=gamma_corr,
+                         color_inversion=color_inversion,
                          flip_horizontally=flip_horizontally,
                          flip_vertically=flip_vertically,
                          seed=seed)

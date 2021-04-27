@@ -42,6 +42,7 @@ FastAugment merges some common data augmentation techniques into a single comput
   * Hue correction
   * Color saturation correction
   * Gamma correction
+  * Color inversion
 
 * Other common augmentation techniques:
   * CutOut ([paper](https://arxiv.org/pdf/1708.04552.pdf))
@@ -112,14 +113,15 @@ Arguments:
 | `rotation`         | Rotation angle range in degrees. The images are rotated in both clockwise and counter-clockwise direction by a random angle less than `rotation`. Default: 10 degrees. |
 | `perspective`      | Perspective distortion range setting the maximum tilting and panning angles in degrees. |
 |                    | The image plane is rotated in 3D around X and Y axes (tilt and pan respectively) by random angles smaller than the given value(s). If one number is given, the same range applies for both axes. The default value is 15 degrees. |
-| `flip_horizontally` | A boolean. If `True`, the images are flipped horizontally with 50% chance. Default: True. |
-| `flip_vertically`   | A boolean. If `True`, the images are flipped vertically with 50% chance. Default: False. |
+| `flip_horizontally` | A boolean. If `True`, the images are flipped horizontally with 50% chance. Default: `True`. |
+| `flip_vertically`   | A boolean. If `True`, the images are flipped vertically with 50% chance. Default: `False`. |
 | `hue`              | Hue shift range in degrees. The image pixels color hues are shifted by a random angle smaller than `hue`. A hue shift of +/-120 degrees transforms green in red/blue and vice versa. The default value is 10 degrees. |
 | `saturation`       | Color saturation factor range. For every input image, the color saturation is scaled by a random factor sampled in range `[1 - saturation, 1 + saturation]`. |
 |                    | Applying zero saturation scale produces a grayscale image. The default value is 0.4. |
 | `brightness`       | Brightness factor range. For every input image, the intensity is scaled by a random factor sampled in range `[1 - brightness, 1 + brightness]`. The default value is 0.1 |
 | `gamma_corr`       | Gamma correction factor range. For every input image, the factor value is randomly sampled in range `[1 - gamma_corr, 1 + gamma_corr]`. |
 |                    | Gamma correction boosts (for factors below 1) or reduces (for factors above 1) dark image areas intensity, while bright areas are less affected. The default value is 0.2. |
+| `color_inversion`  | A boolean. If `True`, colors of all pixels in every image are inverted (negated) with 50% chance. Default: `False`. |
 | `cutout`           | Probability of CutOut being applied to a given input image. The default value is 0.5. CutOut erases a randomly placed rectangular area of an image. See the original paper for more details: https://arxiv.org/pdf/1708.04552.pdf |
 | `cutout_size`      | A list specifying the normalized size range CutOut area width and height are sampled from.  `[0.3, 0.5]` range produces a rectangle of 30% to 50% of image size on every side (default). If empty list is passed, CutOut application is disabled. |
 | `mixup`            | Probability of mixup being applied to a given input image. Mixup is disabled by default (`mixup` is set to zero). Mixup is applied across the batch. Every two mixed images undergo the same set of other transformations except flipping which can be different. Requires the input labels `y`. If not provided, an exception is thrown. |

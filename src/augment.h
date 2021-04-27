@@ -10,7 +10,8 @@ namespace dataug {
         FLAG_VERTICAL_FLIP       = 2,
         FLAG_MIX_HORIZONTAL_FLIP = 4,
         FLAG_MIX_VERTICAL_FLIP   = 8,
-        FLAG_CUTOUT              = 16;
+        FLAG_CUTOUT              = 16,
+        FLAG_COLOR_INVERSION     = 32;
 
 
     /**
