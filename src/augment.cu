@@ -133,7 +133,7 @@ void dataug::padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* out
 
 
 template<typename out_t>
-void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
+void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
     // set up texture
     struct cudaResourceDesc resDesc;
     memset(&resDesc, 0, sizeof(resDesc));
@@ -146,6 +146,9 @@ void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t in
     resDesc.res.pitch2D.desc.z = 8;
     resDesc.res.pitch2D.width = inWidth;
     resDesc.res.pitch2D.height = inHeight * batchSize;
+    if (resDesc.res.pitch2D.height > maxTextureHeight)
+        throw std::runtime_error("Cannot fit a batch of " + std::to_string(batchSize) + " images of " + std::to_string(inHeight) + " pixels height into texture. "
+                                 "Max allowed texture height on this GPU is " + std::to_string(maxTextureHeight) + " pixels.");
     resDesc.res.pitch2D.pitchInBytes = pitch;
 
     struct cudaTextureDesc texDesc;
@@ -181,13 +184,13 @@ void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t in
 }
 
 
-void dataug::compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
-    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, params);
+void dataug::compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
 }
 
 
-void dataug::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, const Params* params) {
-    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, params);
+void dataug::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
 }
 
 

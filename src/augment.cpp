@@ -46,6 +46,7 @@ class DataugOpKernel : public OpKernel {
     bool flipHorizontally, flipVertically;      //!< if `true`, the image is flipped with 50% chance along a specific direction
     bool isotropicScaling;                      //!< if `true`, the scale factor is the same along X and Y direction
     int seed;                                   //!< random seed; not applied if zero
+    size_t maxTextureHeight;                    //!< maximum texture height in pixels allowed by the GPU
 
     size_t getPair(OpKernelConstruction* context, const char* attribute, float&a, float& b) {
         std::vector<float> listArg;
@@ -135,6 +136,9 @@ public:
         // get alignment values
         textureAlignment = properties.textureAlignment;
         texturePitchAlignment = properties.texturePitchAlignment;
+
+        // get max texture height
+        maxTextureHeight = (size_t)properties.maxTexture2D[1];
     }
 
 
@@ -302,6 +306,7 @@ public:
                     inputWidth, inputHeight, pitchBytes,            // input sizes
                     outputWidth, outputHeight,                      // output sizes
                     batchSize,                                      // batch size
+                    maxTextureHeight,
                     paramsGpuPtr);                                  // transformation description
         }
         catch (std::exception& ex) {
