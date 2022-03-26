@@ -190,10 +190,12 @@ class KerasLayerTests(tf.test.TestCase):
         model.fit(x=images, y=proba, verbose=False)
 
         # save and load
-        with tempfile.TemporaryDirectory() as tmp:
-            path = os.path.join(tmp, '.hdf5')
-            model.save(path)
-            model = tf.keras.models.load_model(path)
+        custom_objects = {"Augment": Augment}
+        with tf.keras.utils.custom_object_scope(custom_objects):
+            with tempfile.TemporaryDirectory() as tmp:
+                path = os.path.join(tmp, '.hdf5')
+                model.save(path)
+                model = tf.keras.models.load_model(path)
 
 
     def test_in_model(self):

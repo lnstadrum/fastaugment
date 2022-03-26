@@ -1,17 +1,22 @@
 import tensorflow as tf
-import os
+from os import path
 
 
 # loading the library
-script_dir = os.path.dirname(os.path.realpath(__file__))
+base_dir = path.dirname(path.dirname(path.realpath(__file__)))
 try:
-    lib = tf.load_op_library(os.path.join(script_dir, 'libfastaugment.so'))
+    lib = tf.load_op_library(path.join(base_dir, 'build', 'libfastaugment_tensorflow.so'))
 except:
-    lib = tf.load_op_library(os.path.join(script_dir, 'build', 'libfastaugment.so'))
+    raise ImportError("Cannot load the extension library 'libfastaugment_tensorflow.so'. Make sure it is compiled.")
 
 
 # empty tensor placeholder
 empty_tensor = tf.convert_to_tensor(())
+
+
+# converts a value into a list if it is not yet a list or a tuple
+def listify(it):
+    return it if isinstance(it, list) or isinstance(it, tuple) else [it]
 
 
 # parameters disabling all augmentation tranformations (for debuging purposes)
@@ -133,7 +138,6 @@ def augment(x, y=None,
         Returns:
             A `Tensor` with a set of transformations applied to the input image or batch, and another `Tensor` containing the image labels in one-hot format.
     """
-    listify = lambda it : it if isinstance(it, list) or isinstance(it, tuple) else [it]
     x_, y_ = lib.Augment(input=x,
                          input_labels=empty_tensor if y is None else y,
                          output_size=output_size or [],
@@ -208,5 +212,6 @@ class Augment(tf.keras.layers.Layer):
     def get_config(self):
         config = super().get_config()
         config.update(self.args)
-        config['output_type'] = str(self.output_type)
+        config['training_only'] = self.training_only
+        config['output_type'] = self.output_type
         return config

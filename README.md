@@ -1,6 +1,6 @@
 ![Build](https://github.com/lnstadrum/fastaugment/workflows/Build/badge.svg)
 
-# Fast Augment
+# FastAugment
 
 A handy data augmentation toolkit for image classification put in a single efficient TensorFlow op.
 
@@ -142,19 +142,19 @@ cd fastaugment
 mkdir -p build && cd build
 cmake .. && make
 cd ..
-export PYTHONPATH=$PYTHONPATH:$(pwd)
+export PYTHONPATH=$PYTHONPATH:$(pwd)/tensorflow
 ```
 
 A dockerfile is also available.
 
 Once compiled and appended to `PYTHONPATH`, FastAugment is ready for use. It is a good thing to make sure that tests are passing before going further though:
 ```bash
-python3 test.py
+python3 tensorflow/test.py
 ```
 
 You can also run the example script to get some visuals:
 ```bash
-python3 example.py
+python3 tensorflow/example.py
 ```
 
 # Illustrations

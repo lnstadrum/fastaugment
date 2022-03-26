@@ -2,7 +2,7 @@
 #include <stdexcept>
 
 
-using namespace dataug;
+using namespace fastaugment;
 
 
 template <typename T>
@@ -122,7 +122,7 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
 }
 
 
-void dataug::padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
+void fastaugment::padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
     const dim3 threads(32, 32);
     const dim3 blocks((width  + threads.x - 1) / threads.x,
                       (height + threads.y - 1) / threads.y,
@@ -184,17 +184,17 @@ void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t in
 }
 
 
-void dataug::compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+void fastaugment::compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
     ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
 }
 
 
-void dataug::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+void fastaugment::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
     ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
 }
 
 
-void dataug::setColorTransform(Params& params, float hueShiftRad, float saturationFactor, float valueFactor) {
+void fastaugment::setColorTransform(Params& params, float hueShiftRad, float saturationFactor, float valueFactor) {
     // Sampling a rotation and scaling matrix in RGB space:
     //   - rotation around (1,1,1) vector by hueShiftRad radians,
     //   - scaling along (1,1,1) vector by valueFactor and in orthogonal direction by saturationFactor
@@ -221,7 +221,7 @@ void dataug::setColorTransform(Params& params, float hueShiftRad, float saturati
 }
 
 
-void dataug::setGeometricTransform(Params& params, float pan, float tilt, float roll, float scaleX, float scaleY) {
+void fastaugment::setGeometricTransform(Params& params, float pan, float tilt, float roll, float scaleX, float scaleY) {
     /*
         X, Y: image axes, Z: forward
 

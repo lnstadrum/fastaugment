@@ -3,7 +3,7 @@
 #include <cuda_runtime.h>
 
 
-namespace dataug {
+namespace fastaugment {
 
     static const unsigned int
         FLAG_HORIZONTAL_FLIP     = 1,

@@ -12,8 +12,7 @@ RUN cd /opt/fastaugment &&\
     cmake .. && make
 
 # update PYTHONPATH
-ENV PYTHONPATH=$PYTHONPATH:/opt/fastaugment
+ENV PYTHONPATH=$PYTHONPATH:/opt/fastaugment/tensorflow
 
 # try to import the module in Python
 RUN python3 -c "import fast_augment; print('Yay!')"
-
