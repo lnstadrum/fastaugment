@@ -31,6 +31,17 @@ namespace fastaugment {
         bool flipHorizontally, flipVertically;      //!< if `true`, the image is flipped with 50% chance along a specific direction
         bool isotropicScaling;                      //!< if `true`, the scale factor is the same along X and Y direction
         int seed;                                   //!< random seed; not applied if zero
+
+        inline void check() {
+            if (mixupProb < 0 || mixupProb > 1)
+                throw std::invalid_argument("Invalid Mixup probability: " + std::to_string(mixupProb) + ", expected a value in [0, 1] range");
+
+            if (cutoutProb < 0 || cutoutProb > 1)
+                throw std::invalid_argument("Invalid CutOut probability: " + std::to_string(cutoutProb) + ", expected a value in [0, 1] range");
+
+            if (gammaCorrection < 0 || gammaCorrection > 0.9)
+                throw std::invalid_argument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.9] range.");
+        }
     } Settings;
 
 
@@ -41,7 +52,7 @@ namespace fastaugment {
      * @tparam TempGPUBuffer            class representing temporary GPU buffers
      * @tparam BufferAllocationArgs     arguments to send to TempGPUBuffer constructor
      */
-    template<typename in_t, typename out_t, class TempGPUBuffer, typename... BufferAllocationArgs>
+    template<class TempGPUBuffer, typename... BufferAllocationArgs>
     class KernelBase {
     private:
         size_t textureAlignment, texturePitchAlignment;
@@ -96,6 +107,7 @@ namespace fastaugment {
          * @param stream            CUDA stream
          * @param allocationArgs    Frontend-specific TempGPUBuffer allocation arguments
          */
+        template<typename in_t, typename out_t>
         void run(
             const Settings& settings,
             const in_t* inputPtr,

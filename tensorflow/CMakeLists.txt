@@ -20,5 +20,5 @@ include_directories(${TF_INCLUDE_DIRS} ${CMAKE_CUDA_TOOLKIT_INCLUDE_DIRECTORIES}
 
 # add library
 add_library(fastaugment_tensorflow SHARED
-    ${CMAKE_CURRENT_LIST_DIR}/src/tensorflow.cpp
-    ${CMAKE_CURRENT_LIST_DIR}/src/augment.cu)
+    ${CMAKE_CURRENT_LIST_DIR}/../src/tensorflow.cpp
+    ${CMAKE_CURRENT_LIST_DIR}/../src/augment.cu)

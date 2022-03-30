@@ -3,7 +3,7 @@ from os import path
 
 
 # loading the library
-base_dir = path.dirname(path.dirname(path.realpath(__file__)))
+base_dir = path.dirname(path.realpath(__file__))
 try:
     lib = tf.load_op_library(path.join(base_dir, 'build', 'libfastaugment_tensorflow.so'))
 except:

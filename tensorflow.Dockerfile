@@ -1,15 +1,14 @@
-FROM tensorflow/tensorflow:latest-gpu
+FROM tensorflow/tensorflow:2.7.1-gpu
 
 # add source code
 ADD . /opt/fastaugment
 
-# install cmake and gcc
-RUN apt update && apt install -y cmake
+# install cmake
+RUN apt install -y cmake
 
 # compile
-RUN cd /opt/fastaugment &&\
-    rm -rf build && mkdir -p build && cd build &&\
-    cmake .. && make
+RUN cd /opt/fastaugment/tensorflow &&\
+    cmake -B build && make -C build
 
 # update PYTHONPATH
 ENV PYTHONPATH=$PYTHONPATH:/opt/fastaugment/tensorflow

@@ -44,12 +44,12 @@ public:
 template<class Device, typename in_t, typename out_t>
 class FastAugmentTFOpKernel :
     public OpKernel,
-    protected fastaugment::KernelBase<in_t, out_t, TFTempGPUBuffer, OpKernelContext*>,
+    protected fastaugment::KernelBase<TFTempGPUBuffer, OpKernelContext*>,
     private fastaugment::Settings
 {
     std::vector<int64_t> outputSize;
 
-    size_t getPair(OpKernelConstruction* context, const char* attribute, float&a, float& b) {
+    size_t getPair(OpKernelConstruction* context, const char* attribute, float& a, float& b) {
         std::vector<float> listArg;
         if (context->GetAttr(attribute, &listArg) != Status::OK()) {
             context->CtxFailure(errors::InvalidArgument("Cannot get '" + std::string(attribute) + "' attribute value. Expected a list of floating point values."));
@@ -100,16 +100,12 @@ public:
 
         // get CutOut parameters
         OP_REQUIRES_OK(context, context->GetAttr("cutout_prob", &cutoutProb));
-        if (cutoutProb < 0 || cutoutProb > 1)
-            context->CtxFailure(errors::InvalidArgument("Invalid CutOut probability: " + std::to_string(cutoutProb) + ", expected a value in [0, 1] range"));
         n = getPair(context, "cutout_size", cutout[0], cutout[1]);
         if (n == 0)
             cutoutProb = 0;
 
         // get Mixup parameters
         OP_REQUIRES_OK(context, context->GetAttr("mixup_prob", &mixupProb));
-        if (mixupProb < 0 || mixupProb > 1)
-            context->CtxFailure(errors::InvalidArgument("Invalid Mixup probability: " + std::to_string(mixupProb) + ", expected a value in [0, 1] range"));
         OP_REQUIRES_OK(context, context->GetAttr("mixup_alpha", &mixupAlpha));
 
         // get HSV transformation magnitudes
@@ -120,17 +116,24 @@ public:
 
         // get gamma correction range
         OP_REQUIRES_OK(context, context->GetAttr("gamma_corr", &gammaCorrection));
-        if (gammaCorrection < 0 || gammaCorrection > 0.9)
-            context->CtxFailure(errors::InvalidArgument("Bad gamma correction factor range: " + std::to_string(gammaCorrection) + ". Expected a value in [0, 0.9] range."));
 
+        // get color inversion flag
         OP_REQUIRES_OK(context, context->GetAttr("color_inversion", &colorInversion));
 
         // get random seed
         OP_REQUIRES_OK(context, context->GetAttr("seed", &seed));
 
+        // check parameters
+        try {
+            check();
+        }
+        catch (std::exception& ex) {
+            context->CtxFailure(errors::InvalidArgument(ex.what()));
+        }
+
         // prepare texture parameters
         try {
-            fastaugment::KernelBase<in_t, out_t, TFTempGPUBuffer, OpKernelContext*>::queryTextureParams();
+            fastaugment::KernelBase<TFTempGPUBuffer, OpKernelContext*>::queryTextureParams();
         }
         catch (std::exception& ex) {
             context->CtxFailure(errors::Internal(ex.what()));
@@ -177,7 +180,7 @@ public:
         // create an output tensor
         Tensor* outputTensor = nullptr;
         if (isBatch)
-            OP_REQUIRES_OK(context, context->allocate_output(0, { (int64_t)batchSize, outputHeight, outputWidth, 3 }, &outputTensor));
+            OP_REQUIRES_OK(context, context->allocate_output(0, { batchSize, outputHeight, outputWidth, 3 }, &outputTensor));
         else
             OP_REQUIRES_OK(context, context->allocate_output(0, { outputHeight, outputWidth, 3 }, &outputTensor));
 
@@ -187,7 +190,7 @@ public:
 
         // compute the output
         try {
-            fastaugment::KernelBase<in_t, out_t, TFTempGPUBuffer, OpKernelContext*>::run(
+            fastaugment::KernelBase<TFTempGPUBuffer, OpKernelContext*>::run<in_t, out_t>(
                 *this,
                 inputTensor.flat<in_t>().data(),
                 outputTensor->flat<out_t>().data(),

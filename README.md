@@ -21,7 +21,7 @@ This repository offers an easy-to-use replacement of some common augmentation te
 
 * Plug and play, easy to deploy
   * Lightweight, no dependencies
-  * Designed to replace a big chunk of a typical data augmentation pipeline with a single call. 
+  * Designed to replace a big chunk of a typical data augmentation pipeline with a single call.
     * But indeed can be used just as another processing block.
   * Can be used as a mapping in `tf.data.Dataset` processing pipeline, or as a part of a Keras model, or in any other situation as a TensorFlow operation.
 
@@ -133,28 +133,46 @@ Returns a `Tensor` with a set of transformations applied to the input image or b
 
 # Installation
 
-Easily compiles from source code in few seconds, only need cmake and any standard C++ compiler. Once the code is compiled, the repository root path is to be appended to `PYTHONPATH` environment variable to enable Python to find the extension.
+## TensorFlow
+
+FastAugment easily compiles from source code in a few seconds, only need cmake and any standard C++ compiler. Once the code is compiled, the repository root path is to be appended to `PYTHONPATH` environment variable to enable Python to find the extension.
 
 A complete copy-paste recipe for linux (tested in ubuntu- and RHEL-based distributions):
 ```bash
 git clone https://github.com/lnstadrum/fastaugment.git
-cd fastaugment
-mkdir -p build && cd build
-cmake .. && make
-cd ..
-export PYTHONPATH=$PYTHONPATH:$(pwd)/tensorflow
+cd fastaugment/tensorflow
+cmake -B build
+make -C build
+export PYTHONPATH=$PYTHONPATH:$(pwd)
 ```
-
-A dockerfile is also available.
 
 Once compiled and appended to `PYTHONPATH`, FastAugment is ready for use. It is a good thing to make sure that tests are passing before going further though:
 ```bash
-python3 tensorflow/test.py
+python3 test.py
 ```
 
 You can also run the example script to get some visuals:
 ```bash
-python3 tensorflow/example.py
+python3 example.py
+```
+
+## PyTorch
+
+For PyTorch, you can compile and install `fast_augment_torch` module as follows:
+```bash
+git clone https://github.com/lnstadrum/fastaugment.git
+cd fastaugment/pytorch
+python3 setup.py install --user
+```
+
+Make sure everything is fine by running unitary tests:
+```bash
+python3 test.py
+```
+
+You can also run the example script to get some visuals:
+```bash
+python3 example.py
 ```
 
 # Illustrations
