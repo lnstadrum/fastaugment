@@ -26,7 +26,7 @@ class ShapeTests(unittest.TestCase):
 class ColorTests(tf.test.TestCase):
     """ Color-related tests
     """
-    def test_identity(self):
+    def test_identity_u8(self):
         # make random input
         input_batch = tf.random.uniform((5, 23, 45, 3), maxval=255)
         input_batch = tf.cast(input_batch, tf.uint8)
@@ -37,29 +37,35 @@ class ColorTests(tf.test.TestCase):
         # compare: expected same output
         self.assertAllEqual(output_batch, input_batch)
 
+    def test_identity_f32(self):
+        # make random input
+        input_batch = tf.random.uniform((5, 23, 45, 3), maxval=1)
+
+        # apply identity transformation
+        output_batch = augment(input_batch, output_type=tf.float32, **BYPASS_PARAMS)
+
+        # compare: expected same output
+        self.assertAllEqual(output_batch, input_batch)
+
     def test_center_pixel(self):
         # make random grayscale input
-        input_batch = tf.random.uniform((32, 1, 1, 1), maxval=255)
+        input_batch = tf.random.uniform((32, 17, 17, 1), maxval=255)
         input_batch = tf.cast(input_batch, tf.uint8)
-        input_batch = tf.tile(input_batch, (1, 16, 16, 3))
+        input_batch = tf.tile(input_batch, (1, 1, 1, 3))
 
         # apply transformations keeping the center pixel color unchanged
+        params = BYPASS_PARAMS.copy()
+        params['flip_vertically'] = True
+        params['flip_horizontally'] = True
+        params['perspective'] = [10, 20]
         output_batch = augment(input_batch,
                                output_type=tf.uint8,
-                               rotation=90,
-                               flip_vertically=True,
-                               flip_horizontally=True,
-                               hue=0,
-                               saturation=0,
-                               brightness=0,
-                               gamma_corr=0,
-                               cutout=0,
-                               mixup=0)
+                               **params)
 
-        # compare center pixel colors: expected same
+        # compare center pixel colors: expecting the same
         self.assertAllEqual(output_batch[:,8,8,:], input_batch[:,8,8,:])
 
-    def test_color_inversion(self):
+    def test_color_inversion_f8(self):
         # make random input
         input_batch = tf.zeros((5, 23, 45, 3), tf.uint8)
 
@@ -71,6 +77,20 @@ class ColorTests(tf.test.TestCase):
         # compare colors
         comp = numpy.logical_xor(input_batch == output_batch, input_batch == 255 - output_batch)
         self.assertTrue(numpy.all(comp))
+
+    def test_color_inversion_f32(self):
+        # make random input
+        input_batch = tf.random.uniform((5, 23, 45, 3), dtype=tf.float32)
+
+        # apply color inversion only
+        params = BYPASS_PARAMS.copy()
+        params['color_inversion'] = True
+        output_batch = augment(input_batch, output_type=tf.float32, **params)
+
+        # compare colors
+        diff1 = input_batch - output_batch
+        diff2 = 1 - input_batch - output_batch
+        self.assertAllClose(diff1 * diff2, tf.zeros_like(diff1))
 
 
 class MixupLabelsTests(tf.test.TestCase):
@@ -158,7 +178,7 @@ class DatatypeTests(tf.test.TestCase):
         self.assertTrue(output_batch_ref.dtype == tf.uint8)
         self.assertTrue(output_batch_float.dtype == tf.float32)
 
-        # cast back to uint8 and compare: expected same output
+        # cast back to uint8 and compare: expecting the same output
         output_batch_test = tf.cast(255 * tf.clip_by_value(output_batch_float, 0, 1), tf.uint8)
         self.assertAllEqual(output_batch_ref, output_batch_test)
 

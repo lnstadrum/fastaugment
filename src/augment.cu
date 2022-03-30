@@ -19,7 +19,7 @@ template <> __device__ void store<uint8_t>(uint8_t& out, float val) {
 
 
 template <typename in_t, typename out_t>
-__global__ void dataugPaddingKernel(const in_t* in, out_t* out, size_t inWidth, size_t height, size_t outWidth) {
+__global__ void paddingKernel(const in_t* in, out_t* out, size_t inWidth, size_t height, size_t outWidth) {
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
 
@@ -36,7 +36,7 @@ __global__ void dataugPaddingKernel(const in_t* in, out_t* out, size_t inWidth, 
 
 
 template <typename out_t>
-__global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, const size_t width, const size_t height, const size_t batchSize, const Params* params) {
+__global__ void processingKernel(cudaTextureObject_t texObj, out_t* out, const size_t width, const size_t height, const size_t batchSize, const Params* params) {
     // get pixel position
     unsigned int x = blockIdx.x * blockDim.x + threadIdx.x;
     unsigned int y = blockIdx.y * blockDim.y + threadIdx.y;
@@ -122,28 +122,41 @@ __global__ void dataugProcessingKernel(cudaTextureObject_t texObj, out_t* out, c
 }
 
 
-void fastaugment::padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
+template<typename T>
+void padChannels(cudaStream_t stream, const T* input, T* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
     const dim3 threads(32, 32);
     const dim3 blocks((width  + threads.x - 1) / threads.x,
                       (height + threads.y - 1) / threads.y,
                       batchSize);
 
-    dataugPaddingKernel<uint8_t, uint8_t> <<<blocks, threads, 0, stream>>> (input, output, width, height, outWidth);
+    paddingKernel<T, T> <<<blocks, threads, 0, stream>>> (input, output, width, height, outWidth);
 }
 
 
-template<typename out_t>
-void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+template<>
+void fastaugment::padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
+    ::padChannels<uint8_t>(stream, input, output, width, height, batchSize, outWidth);
+}
+
+
+template<>
+void fastaugment::padChannels(cudaStream_t stream, const float* input, float* output, size_t width, size_t height, size_t batchSize, size_t outWidth) {
+    ::padChannels<float>(stream, input, output, width, height, batchSize, outWidth);
+}
+
+
+template<typename in_t, typename out_t>
+void compute(cudaStream_t stream, const in_t* input, out_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
     // set up texture
     struct cudaResourceDesc resDesc;
     memset(&resDesc, 0, sizeof(resDesc));
     resDesc.resType = cudaResourceTypePitch2D;
-    resDesc.res.pitch2D.devPtr = const_cast<uint8_t*>(input);
-    resDesc.res.pitch2D.desc.f = cudaChannelFormatKindUnsigned;
-    resDesc.res.pitch2D.desc.w = 8;
-    resDesc.res.pitch2D.desc.x = 8;
-    resDesc.res.pitch2D.desc.y = 8;
-    resDesc.res.pitch2D.desc.z = 8;
+    resDesc.res.pitch2D.devPtr = const_cast<in_t*>(input);
+    resDesc.res.pitch2D.desc.f = std::is_same<in_t, float>::value ? cudaChannelFormatKindFloat : cudaChannelFormatKindUnsigned;
+    resDesc.res.pitch2D.desc.w = 8 * sizeof(in_t);
+    resDesc.res.pitch2D.desc.x = 8 * sizeof(in_t);
+    resDesc.res.pitch2D.desc.y = 8 * sizeof(in_t);
+    resDesc.res.pitch2D.desc.z = 8 * sizeof(in_t);
     resDesc.res.pitch2D.width = inWidth;
     resDesc.res.pitch2D.height = inHeight * batchSize;
     if (resDesc.res.pitch2D.height > maxTextureHeight)
@@ -156,7 +169,7 @@ void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t in
     texDesc.addressMode[0]   = cudaAddressModeClamp;
     texDesc.addressMode[1]   = cudaAddressModeClamp;
     texDesc.filterMode       = cudaFilterModeLinear;
-    texDesc.readMode         = cudaReadModeNormalizedFloat;
+    texDesc.readMode         = std::is_same<in_t, float>::value ? cudaReadModeElementType : cudaReadModeNormalizedFloat;
     texDesc.normalizedCoords = 1;
 
     cudaTextureObject_t texObj = 0;
@@ -172,7 +185,7 @@ void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t in
         batchSize
     );
 
-    dataugProcessingKernel<<<blocks, threads, 0, stream>>>(texObj, output, outWidth, outHeight, batchSize, params);
+    processingKernel<<<blocks, threads, 0, stream>>>(texObj, output, outWidth, outHeight, batchSize, params);
 
     // destroy texture
     cudaDestroyTextureObject(texObj);
@@ -184,12 +197,20 @@ void compute(cudaStream_t stream, const uint8_t* input, out_t* output, size_t in
 }
 
 
+template<>
+void fastaugment::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+    ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
+}
+
+
+template<>
 void fastaugment::compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
     ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
 }
 
 
-void fastaugment::compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
+template<>
+void fastaugment::compute(cudaStream_t stream, const float* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params) {
     ::compute(stream, input, output, inWidth, inHeight, pitch, outWidth, outHeight, batchSize, maxTextureHeight, params);
 }
 

@@ -31,7 +31,7 @@ class ColorTests(unittest.TestCase):
     def setUp(cls):
         cls.augment = FastAugment()
 
-    def test_identity(self):
+    def test_identity_u8(self):
         # make random input
         input_batch = torch.randint(size=(5, 23, 45, 3), high=255)
         input_batch = input_batch.to(torch.uint8).cuda()
@@ -43,28 +43,36 @@ class ColorTests(unittest.TestCase):
         # compare: expected same output
         self.assertTrue(torch.equal(output_batch, input_batch))
 
+    def test_identity_u32(self):
+        # make random input
+        input_batch = torch.randint(size=(5, 23, 45, 3), high=1).to(torch.float32)
+        input_batch = input_batch.cuda()
+
+        # apply identity transformation
+        augment = FastAugment(**BYPASS_PARAMS)
+        output_batch = augment(input_batch, output_type=torch.float32)
+
+        # compare: expected same output
+        self.assertTrue(torch.equal(output_batch, input_batch))
+
     def test_center_pixel(self):
         # make random grayscale input
-        input_batch = torch.randint(size=(32, 1, 1, 1), high=255)
+        input_batch = torch.randint(size=(32, 17, 17, 1), high=255)
         input_batch = input_batch.to(torch.uint8).cuda()
-        input_batch = input_batch.repeat(1, 16, 16, 3)
+        input_batch = input_batch.repeat(1, 1, 1, 3)
 
         # apply transformations keeping the center pixel color unchanged
-        augment = FastAugment(rotation=90,
-                              flip_vertically=True,
-                              flip_horizontally=True,
-                              hue=0,
-                              saturation=0,
-                              brightness=0,
-                              gamma_corr=0,
-                              cutout=0,
-                              mixup=0)
+        params = BYPASS_PARAMS.copy()
+        params['flip_vertically'] = True
+        params['flip_horizontally'] = True
+        params['perspective'] = [10, 20]
+        augment = FastAugment(**params)
         output_batch = augment(input_batch, output_type=torch.uint8)
 
-        # compare center pixel colors: expected same
+        # compare center pixel colors: expecting the same
         self.assertTrue(torch.equal(output_batch[:,8,8,:], input_batch[:,8,8,:]))
 
-    def test_color_inversion(self):
+    def test_color_inversion_u8(self):
         # make random input
         input_batch = torch.zeros(5, 23, 45, 3).to(torch.uint8).cuda()
 
@@ -78,6 +86,20 @@ class ColorTests(unittest.TestCase):
         output_batch = output_batch.cpu().numpy()
         comp = numpy.logical_xor(input_batch == output_batch, input_batch == 255 - output_batch)
         self.assertTrue(numpy.all(comp))
+
+    def test_color_inversion_f32(self):
+        # make random input
+        input_batch = torch.rand(5, 23, 45, 3).cuda()
+
+        # apply color inversion only
+        params = BYPASS_PARAMS.copy()
+        params['color_inversion'] = True
+        output_batch = FastAugment(**params)(input_batch, output_type=torch.float32)
+
+        # compare colors
+        diff1 = input_batch - output_batch
+        diff2 = 1 - input_batch - output_batch
+        self.assertTrue(torch.allclose(diff1 * diff2, torch.zeros_like(diff1)))
 
 
 class MixupLabelsTests(unittest.TestCase):
@@ -147,7 +169,6 @@ class SeedTests(unittest.TestCase):
         self.assertTrue(torch.equal(output_proba1, output_proba3))
 
 
-
 class DatatypeTests(unittest.TestCase):
     """ Datatype verification
     """
@@ -165,7 +186,7 @@ class DatatypeTests(unittest.TestCase):
         self.assertTrue(output_batch_ref.dtype == torch.uint8)
         self.assertTrue(output_batch_float.dtype == torch.float32)
 
-        # cast back to uint8 and compare: expected same output
+        # cast back to uint8 and compare: expecting the same output
         output_batch_test = (255 * output_batch_float.clamp(0, 1)).to(torch.uint8)
         self.assertTrue(torch.equal(output_batch_ref, output_batch_test))
 

@@ -218,19 +218,22 @@ public:
     REGISTER_KERNEL_BUILDER(                            \
             Name("Augment")                             \
             .Device(DEVICE_GPU)                         \
+            .TypeConstraint<IN_T>("input_type")       \
             .TypeConstraint<OUT_T>("output_type")       \
             .HostMemory("input_labels")                 \
             .HostMemory("output_labels"),               \
         FastAugmentTFOpKernel<Eigen::GpuDevice, IN_T, OUT_T>)
 
-REGISTER_KERNEL(uint8_t, float);
 REGISTER_KERNEL(uint8_t, uint8_t);
+REGISTER_KERNEL(uint8_t, float);
+REGISTER_KERNEL(float, float);
 
 
 // Register operations
 REGISTER_OP("Augment")
+    .Attr("input_type: {uint8, float}")
     .Attr("output_type: {uint8, float}")
-    .Input("input: uint8")
+    .Input("input: input_type")
     .Input("input_labels: float")
     .Output("output: output_type")
     .Output("output_labels: float")

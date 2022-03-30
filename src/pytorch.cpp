@@ -56,11 +56,17 @@ private:
     ) {
         if (input.scalar_type() == torch::kUInt8) {
             if (output.scalar_type() == torch::kUInt8) {
-                Base::run<uint8_t, uint8_t>(settings, input.data_ptr<uint8_t>(), output.data_ptr<uint8_t>(), args...);
+                Base::run(settings, input.data_ptr<uint8_t>(), output.data_ptr<uint8_t>(), args...);
                 return;
             }
             if (output.scalar_type() == torch::kFloat) {
-                Base::run<uint8_t, float>(settings, input.data_ptr<uint8_t>(), output.data_ptr<float>(), args...);
+                Base::run(settings, input.data_ptr<uint8_t>(), output.data_ptr<float>(), args...);
+                return;
+            }
+        }
+        else if (input.scalar_type() == torch::kFloat) {
+            if (output.scalar_type() == torch::kFloat) {
+                Base::run(settings, input.data_ptr<float>(), output.data_ptr<float>(), args...);
                 return;
             }
         }
@@ -156,8 +162,8 @@ public:
             throw std::invalid_argument("Expected an input tensor in GPU memory (likely missing a .cuda() call)");
         if (!input.is_contiguous())
             throw std::invalid_argument("Expected a contiguous input tensor");
-        if (input.scalar_type() != torch::kUInt8)
-            throw std::invalid_argument("Expected uint8 input tensor");
+        if (input.scalar_type() != torch::kUInt8 && input.scalar_type() != torch::kFloat)
+            throw std::invalid_argument("Expected uint8 or float input tensor");
 
         // get input sizes
         const bool isBatch = input.dim() == 4;

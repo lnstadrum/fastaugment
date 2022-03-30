@@ -45,10 +45,11 @@ namespace fastaugment {
      * \param batchSize The batch size
      * \param outWidth  Output width in pixels
      */
-    void padChannels(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t width, size_t height, size_t batchSize, size_t outWidth);
+    template<typename T>
+    void padChannels(cudaStream_t stream, const T* input, T* output, size_t width, size_t height, size_t batchSize, size_t outWidth);
 
 
-    void compute(cudaStream_t stream, const uint8_t* input, float* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params);
-    void compute(cudaStream_t stream, const uint8_t* input, uint8_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params);
+    template<typename in_t, typename out_t>
+    void compute(cudaStream_t stream, const in_t* input, out_t* output, size_t inWidth, size_t inHeight, size_t pitch, size_t outWidth, size_t outHeight, size_t batchSize, size_t maxTextureHeight, const Params* params);
 
 }
