@@ -6,8 +6,8 @@ import unittest
 
 
 class ShapeTests(unittest.TestCase):
-    """ Output shape verification
-    """
+    """Output shape verification"""
+
     @classmethod
     def setUp(cls):
         cls.augment = FastAugment()
@@ -25,8 +25,8 @@ class ShapeTests(unittest.TestCase):
 
 
 class ColorTests(unittest.TestCase):
-    """ Color-related tests
-    """
+    """Color-related tests"""
+
     @classmethod
     def setUp(cls):
         cls.augment = FastAugment()
@@ -63,14 +63,14 @@ class ColorTests(unittest.TestCase):
 
         # apply transformations keeping the center pixel color unchanged
         params = BYPASS_PARAMS.copy()
-        params['flip_vertically'] = True
-        params['flip_horizontally'] = True
-        params['perspective'] = [10, 20]
+        params["flip_vertically"] = True
+        params["flip_horizontally"] = True
+        params["perspective"] = [10, 20]
         augment = FastAugment(**params)
         output_batch = augment(input_batch, output_type=torch.uint8)
 
         # compare center pixel colors: expecting the same
-        self.assertTrue(torch.equal(output_batch[:,8,8,:], input_batch[:,8,8,:]))
+        self.assertTrue(torch.equal(output_batch[:, 8, 8, :], input_batch[:, 8, 8, :]))
 
     def test_color_inversion_u8(self):
         # make random input
@@ -78,13 +78,15 @@ class ColorTests(unittest.TestCase):
 
         # apply color inversion only
         params = BYPASS_PARAMS.copy()
-        params['color_inversion'] = True
+        params["color_inversion"] = True
         output_batch = FastAugment(**params)(input_batch, output_type=torch.uint8)
 
         # compare colors
         input_batch = input_batch.cpu().numpy()
         output_batch = output_batch.cpu().numpy()
-        comp = numpy.logical_xor(input_batch == output_batch, input_batch == 255 - output_batch)
+        comp = numpy.logical_xor(
+            input_batch == output_batch, input_batch == 255 - output_batch
+        )
         self.assertTrue(numpy.all(comp))
 
     def test_color_inversion_f32(self):
@@ -93,7 +95,7 @@ class ColorTests(unittest.TestCase):
 
         # apply color inversion only
         params = BYPASS_PARAMS.copy()
-        params['color_inversion'] = True
+        params["color_inversion"] = True
         output_batch = FastAugment(**params)(input_batch, output_type=torch.float32)
 
         # compare colors
@@ -103,8 +105,8 @@ class ColorTests(unittest.TestCase):
 
 
 class MixupLabelsTests(unittest.TestCase):
-    """ Tests of labels computation with mixup
-    """
+    """Tests of labels computation with mixup"""
+
     def test_no_mixup(self):
         # make random input
         input_batch = torch.randint(size=(8, 8, 8, 3), high=255)
@@ -126,22 +128,26 @@ class MixupLabelsTests(unittest.TestCase):
         input_batch = input_batch.reshape(-1, 1, 1, 1).repeat(1, 5, 5, 3)
 
         # transform labels to one-hot
-        input_proba = torch.nn.functional.one_hot(input_labels.to(torch.long), 2).to(torch.float32)
+        input_proba = torch.nn.functional.one_hot(input_labels.to(torch.long), 2).to(
+            torch.float32
+        )
 
         # apply mixup
-        augment = FastAugment(rotation=0,
-                              flip_vertically=True,
-                              flip_horizontally=True,
-                              hue=0,
-                              saturation=0,
-                              brightness=0,
-                              gamma_corr=0,
-                              cutout=0,
-                              mixup=0.9)
+        augment = FastAugment(
+            rotation=0,
+            flip_vertically=True,
+            flip_horizontally=True,
+            hue=0,
+            saturation=0,
+            brightness=0,
+            gamma_corr=0,
+            cutout=0,
+            mixup=0.9,
+        )
         output_batch, output_proba = augment(input_batch, input_proba)
 
         # check that probabilities sum up to 1
-        assert torch.allclose(output_proba[:,0] + output_proba[:, 1], torch.ones((50)))
+        assert torch.allclose(output_proba[:, 0] + output_proba[:, 1], torch.ones((50)))
 
         # compare probabilities to center pixel values
         assert torch.allclose(output_proba[:, 1], output_batch[:, 3, 3, 0].cpu())
@@ -158,9 +164,15 @@ class SeedTests(unittest.TestCase):
         input_proba = torch.nn.functional.one_hot(input_labels, 20).to(torch.float32)
 
         # generate output batches
-        output_batch1, output_proba1 = FastAugment(mixup=0.75, seed=123)(input_batch, input_proba)
-        output_batch2, output_proba2 = FastAugment(mixup=0.75, seed=234)(input_batch, input_proba)
-        output_batch3, output_proba3 = FastAugment(mixup=0.75, seed=123)(input_batch, input_proba)
+        output_batch1, output_proba1 = FastAugment(mixup=0.75, seed=123)(
+            input_batch, input_proba
+        )
+        output_batch2, output_proba2 = FastAugment(mixup=0.75, seed=234)(
+            input_batch, input_proba
+        )
+        output_batch3, output_proba3 = FastAugment(mixup=0.75, seed=123)(
+            input_batch, input_proba
+        )
 
         # compare
         self.assertFalse(torch.equal(output_batch1, output_batch2))
@@ -170,8 +182,8 @@ class SeedTests(unittest.TestCase):
 
 
 class DatatypeTests(unittest.TestCase):
-    """ Datatype verification
-    """
+    """Datatype verification"""
+
     def test_uint8_vs_float32(self):
         # make random input
         input_batch = torch.randint(size=(64, 32, 32, 3), high=255)
@@ -191,5 +203,5 @@ class DatatypeTests(unittest.TestCase):
         self.assertTrue(torch.equal(output_batch_ref, output_batch_test))
 
 
-if __name__ == '__main__':
+if __name__ == "__main__":
     unittest.main()
