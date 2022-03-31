@@ -122,6 +122,7 @@ class FastAugment:
             prescale:           A constant scaling factor applied to all images. Can be
                                 used to shift the random scaling distribution from its
                                 default average equal to 1 and crop out image borders.
+                                Higher values make the output images appear smaller.
                                 The default value is 1.
             rotation:           Rotation angle range in degrees. The images are rotated
                                 in both clockwise and counter-clockwise direction by a
@@ -214,12 +215,12 @@ class FastAugment:
         """Applies a sequence of random transformations to images in a batch.
 
         Args:
-            x:            A `Tensor` of `uint8` type containing an input image or batch
-                          in channels-last layout (`HWC` or `NHWC`). 3-channel color
-                          images are expected (`C=3`).
+            x:            A `Tensor` of `uint8` or `float32` type containing an input
+                          image or batch in channels-last layout (`HWC` or `NHWC`).
+                          3-channel color images are expected (`C=3`).
             y:            A `Tensor` of `float32` type containing input labels in
                           one-hot format. Its outermost dimension is expected to match
-                          the batch size. Optional, can be empty.
+                          the batch size. Optional, can be empty or None.
             output_size:  A list `[W, H]` specifying the output batch width and height
                           in pixels. If none, the input size is kept (default).
             output_type:  Output image datatype. Can be `float32` or `uint8`.

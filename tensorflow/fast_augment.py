@@ -118,6 +118,12 @@ def augment(
         - CutOut.
 
         Args:
+            x:                  A `Tensor` of `uint8` or `float32` type containing an
+                                input image or batch in channels-last layout (`HWC` or
+                                `NHWC`). 3-channel color images are expected (`C=3`).
+            y:                  A `Tensor` of `float32` type containing input labels in
+                                one-hot format. Its outermost dimension is expected to
+                                match the batch size. Optional, can be empty or None.
             translation:        Normalized image translation range along X and Y axis.
                                 `0.1` corresponds to a random shift by at most 10% of
                                 the image size in both directions (default).
@@ -132,6 +138,7 @@ def augment(
             prescale:           A constant scaling factor applied to all images. Can be
                                 used to shift the random scaling distribution from its
                                 default average equal to 1 and crop out image borders.
+                                Higher values make the output images appear smaller.
                                 The default value is 1.
             rotation:           Rotation angle range in degrees. The images are rotated
                                 in both clockwise and counter-clockwise direction by a

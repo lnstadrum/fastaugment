@@ -1,18 +1,20 @@
-![Build](https://github.com/lnstadrum/fastaugment/workflows/Build/badge.svg)
+[![Build](https://github.com/lnstadrum/fastaugment/workflows/Build/badge.svg)](https://github.com/lnstadrum/fastaugment/actions/workflows/build_and_push.yml)
 
 # FastAugment
 
-A handy data augmentation toolkit for image classification put in a single efficient TensorFlow op.
+FastAugment is a handy data augmentation toolkit for vision and imaging tasks put in a single efficient TensorFlow/PyTorch extension.
+
+To render a richly augmented batch of 128 `uint8` images of 224*224 pixels with all features enabled, FastAugment takes **less than 1 millisecond** on Tesla T4 GPU.
 
 # Overview
 
-Common image preprocessing and data augmentation scripts involve plenty processing blocks run on CPU. Depending on the hardware and number of users sharing the CPU resource, these blocks can turn the CPU load and RAM bandwidth into a bottleneck and cause GPU being underutilized.
+Building efficient imaging data pipelines is quite harder than it seems. Common image preprocessing and data augmentation scripts involve plenty processing blocks run on CPU. Depending on the hardware and number of users sharing the CPU resource, these blocks can turn the CPU load and RAM bandwidth into a bottleneck and cause GPU being underutilized.
 
-This repository offers an easy-to-use replacement of some common augmentation techniques used when training image classification models.
+This repository offers an easy-to-use replacement of common image data augmentation techniques.
 
 * Computations are entirely run on GPU, extremely efficient
   * Every image in the output batch is sampled only once; all the augmentation transformations are applied in a single pass.
-  * Processing a batch of 128 images of 224*224 pixels with all features enabled takes **less than 1 millisecond** on Tesla T4 GPU.
+  * FastAugment achieves a huge throughput thanks to the use of texture samplers (HW acceleration units commonly used in video games).
   * While the GPU overhead is marginal, you can keep your CPU busy with something else.
 
 * High quality augmented data on output
@@ -52,12 +54,29 @@ FastAugment merges some common data augmentation techniques into a single comput
 ## Limitations
 
 * Image classification-oriented feature set (so far)
-* For TensorFlow only (so far)
-* Applies on NVidia GPUs only
-* Input batch datatype is restricted to `uint8` for performance reasons
+* Works on NVidia GPUs only
+* Channels-last (NHWC) input and output batches are only supported so far
 
 
-# Docs
+# Usage
+
+`augment()` applies a set of random geometry and color transformations to images in a batch.
+The applied transformation differs from one image to another one in the same batch. Transformations parameters are sampled from uniform distributions of given ranges.
+Their default values enable some moderate amount of augmentations.
+
+Every image is sampled only once through a bilinear interpolator.
+
+Transformation application order:
+  - horizontal and/or vertical flipping,
+  - perspective distortion,
+  - in-plane image rotation and scaling,
+  - translation,
+  - gamma correction,
+  - hue, saturation and brightness correction,
+  - mixup,
+  - CutOut.
+
+## TensorFlow
 
 Using as a `tf.data.Dataset` mapping:
 ```
@@ -84,27 +103,28 @@ model = tf.keras.Sequential([
 ])
 ```
 
-`augment()` applies a set of random geometry and color transformations to images in a batch.
-The applied transformation differs from one image to another one in the same batch. Transformations parameters are sampled from uniform distributions of given ranges.
-Their default values enable some moderate amount of augmentations.
+## PyTorch
 
-Every image is sampled only once through a bilinear interpolator.
+In PyTorch, you would need to create a `FastAugment` instance like this:
 
-Transformation application order:
-  - horizontal and/or vertical flipping,
-  - perspective distortion,
-  - in-plane image rotation and scaling,
-  - translation,
-  - gamma correction,
-  - hue, saturation and brightness correction,
-  - mixup,
-  - CutOut.
+```
+from fast_augment_torch import FastAugment
 
-Arguments:
+...
+
+augment = FastAugment(translation=0.1, rotation=30, mixup=0.5)
+batch, labels = augment(batch, labels)
+```
+
+Note that `batch` has to be in channels-last (NHWC) format, which is somewhat uncommon for PyTorch.
+
+## Reference
+
+Arguments reference for TensorFlow functional API:
 |   |   |
 | - | - |
-| `x`                | A `Tensor` of `uint8` type containing an input image or batch in channels-last layout (`HWC` or `NHWC`). 3-channel color images are expected (`C=3`). |
-| `y`                | A `Tensor` of `float32` type containing input labels in one-hot format. Its outermost dimension is expected to match the batch size. Optional, can be empty. |
+| `x`                | A `Tensor` of `uint8` or `float32` type containing an input image or batch in channels-last layout (`HWC` or `NHWC`). 3-channel color images are expected (`C=3`). |
+| `y`                | A `Tensor` of `float32` type containing input labels in one-hot format. Its outermost dimension is expected to match the batch size. Optional, can be empty or None. |
 | `output_size`      | A list `[W, H]` specifying the output batch width and height in pixels. If none, the input size is kept (default). |
 | `output_dtype`     | Output image datatype. Can be `float32` or `uint8`. Default: `float32`. |
 | `translation`      | Normalized image translation range along X and Y axis. `0.1` corresponds to a random shift by at most 10% of the image size in both directions (default). If one value given, the same range applies for X and Y axes. |
@@ -129,13 +149,12 @@ Arguments:
 | `seed`             | Random seed. If different from 0, reproduces the same sequence of transformations for a given set of parameters and input size. |
 |   |   |
 
-Returns a `Tensor` with a set of transformations applied to the input image or batch, and another `Tensor` containing the image labels in one-hot format.
-
 # Installation
 
+FastAugment easily compiles from source code in a few seconds as shown below. Also, the dockerfiles and the respective prebuilt images on DockerHib are available for both [TensorFlow](https://hub.docker.com/r/lnstadrum/fastaugment_torch) and [PyTorch](https://hub.docker.com/r/lnstadrum/fastaugment_torch).
 ## TensorFlow
 
-FastAugment easily compiles from source code in a few seconds, only need cmake and any standard C++ compiler. Once the code is compiled, the repository root path is to be appended to `PYTHONPATH` environment variable to enable Python to find the extension.
+To build the TensorFlow extension you only need cmake and any standard C++ compiler. Once the code is compiled, the repository root path is to be appended to `PYTHONPATH` environment variable to enable Python to find the extension.
 
 A complete copy-paste recipe for linux (tested in ubuntu- and RHEL-based distributions):
 ```bash
@@ -237,7 +256,6 @@ Mixup:
 
 # Roadmap
 
- * Test in a multi-GPU scenario
+ * Test in a multi-GPU setup
  * Extend to object detection: enable bounding boxes / keypoints transformation
  * Extend to semantic segmentation: enable nearest-neighbor resampling for segmentation masks
- * Bind to PyTorch: add pybind11 bindings
