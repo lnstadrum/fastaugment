@@ -180,6 +180,31 @@ class SeedTests(unittest.TestCase):
         self.assertTrue(torch.equal(output_batch1, output_batch3))
         self.assertTrue(torch.equal(output_proba1, output_proba3))
 
+    def test_seed_reset(self):
+        # make random input
+        input_batch = torch.randint(size=(16, 50, 50, 3), high=255)
+        input_batch = input_batch.to(torch.uint8).cuda()
+
+        # make random labels
+        input_labels = torch.randint(size=(16,), high=2).to(torch.long)
+        input_proba = torch.nn.functional.one_hot(input_labels, 20).to(torch.float32)
+
+        augment = FastAugment(mixup=0.75, seed=123)
+
+        # generate output batches
+        output_batch1, output_proba1 = augment(input_batch, input_proba)
+        output_batch2, output_proba2 = augment(input_batch, input_proba)
+
+        # set back the initial seed and generate another output batch
+        augment.set_seed(123)
+        output_batch3, output_proba3 = augment(input_batch, input_proba)
+
+        # compare
+        self.assertFalse(torch.equal(output_batch1, output_batch2))
+        self.assertFalse(torch.equal(output_proba1, output_proba2))
+        self.assertTrue(torch.equal(output_batch1, output_batch3))
+        self.assertTrue(torch.equal(output_proba1, output_proba3))
+
 
 class DatatypeTests(unittest.TestCase):
     """Datatype verification"""
@@ -189,9 +214,10 @@ class DatatypeTests(unittest.TestCase):
         input_batch = torch.randint(size=(64, 32, 32, 3), high=255)
         input_batch = input_batch.to(torch.uint8).cuda()
 
-        # apply identity transformation
+        # apply identical transformation
         augment = FastAugment(seed=96)
         output_batch_ref = augment(input_batch, output_type=torch.uint8)
+        augment.set_seed(96)
         output_batch_float = augment(input_batch, output_type=torch.float32)
 
         # check output types

@@ -45,6 +45,7 @@ class FastAugmentTFOpKernel : public OpKernel,
                               private fastaugment::Settings
 {
     std::vector<int64_t> outputSize;
+    int seed;
 
     size_t getPair(OpKernelConstruction *context, const char *attribute, float &a, float &b)
     {
@@ -203,6 +204,10 @@ class FastAugmentTFOpKernel : public OpKernel,
         // create output labels tensor
         Tensor *outputLabelsTensor = nullptr;
         OP_REQUIRES_OK(context, context->allocate_output(1, labelsShape, &outputLabelsTensor));
+
+        // set seed if given
+        if (seed != 0)
+            fastaugment::KernelBase<TFTempGPUBuffer, OpKernelContext *>::setRandomSeed(seed);
 
         // compute the output
         try

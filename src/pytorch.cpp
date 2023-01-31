@@ -46,7 +46,7 @@ class TorchTempGPUBuffer
     }
 };
 
-class TorchKernel : private fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda::CUDAStream>
+class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda::CUDAStream>
 {
   private:
     using Base = fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda::CUDAStream>;
@@ -128,8 +128,9 @@ class TorchKernel : private fastaugment::KernelBase<TorchTempGPUBuffer, c10::cud
         // get gamma correction range
         settings.gammaCorrection = gammaCorrection;
 
-        // get random seed
-        settings.seed = seed;
+        // set random seed
+        if (seed != 0)
+            fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda::CUDAStream>::setRandomSeed(seed);
 
         // check settings
         settings.check();
@@ -222,6 +223,8 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, module)
              py::arg("mixup_alpha") = 0.4f, py::arg("hue") = 0.0f, py::arg("saturation") = 0.0f,
              py::arg("brightness") = 0.0f, py::arg("gamma_corr") = 0.0f, py::arg("color_inversion") = false,
              py::arg("flip_horizontally") = false, py::arg("flip_vertically") = false, py::arg("seed") = 0)
+
+        .def("set_seed", &TorchKernel::setRandomSeed, py::arg("seed"))
 
         .def("__call__", &TorchKernel::operator(), py::arg("input"), py::arg("input_labels"), py::arg("output_size"),
              py::arg("is_float32_output"));

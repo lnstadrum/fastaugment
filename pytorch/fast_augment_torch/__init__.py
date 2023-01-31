@@ -211,6 +211,14 @@ class FastAugment:
             seed=seed,
         )
 
+    def set_seed(self, seed: int):
+        """ Reinitializes state of the internal random generator according to a given seed.
+
+        Args:
+            seed (int): the seed value
+        """
+        self.backend.set_seed(seed)
+
     def __call__(self, x, y=None, output_size=None, output_type=torch.float32):
         """Applies a sequence of random transformations to images in a batch.
 

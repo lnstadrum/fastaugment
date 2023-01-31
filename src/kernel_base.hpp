@@ -9,6 +9,8 @@ static const float pi = 3.141592653589f;
 
 namespace fastaugment
 {
+static std::random_device randomDevice;
+
 /**
  * @brief Data augmentation settings.
  * Define the random distribution to sample per-image augmentation parameters
@@ -37,7 +39,6 @@ typedef struct
                            //!< along a specific direction
     bool isotropicScaling; //!< if `true`, the scale factor is the same along X
                            //!< and Y direction
-    int seed;              //!< random seed; not applied if zero
 
     inline void check()
     {
@@ -76,6 +77,10 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
     }
 
   protected:
+    std::default_random_engine rnd;
+
+    KernelBase(): rnd(randomDevice()) {}
+
     static inline void reportCudaError(cudaError_t status, const std::string &message)
     {
         if (status != cudaSuccess)
@@ -128,7 +133,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
     template <typename in_t, typename out_t>
     void run(const Settings &settings, const in_t *inputPtr, out_t *outputPtr, const float *inputLabelsPtr,
              float *outputLabelsPtr, int64_t batchSize, int64_t inputHeight, int64_t inputWidth, int64_t outputHeight,
-             int64_t outputWidth, int64_t numClasses, cudaStream_t stream, BufferAllocationArgs... allocationArgs) const
+             int64_t outputWidth, int64_t numClasses, cudaStream_t stream, BufferAllocationArgs... allocationArgs)
     {
         // correct batchSize value (can be zero if input is a 3-dim tensor)
         const bool isBatch = batchSize > 0;
@@ -164,8 +169,6 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
         // prepare parameters samplers
         std::vector<Params> paramsCpu;
         paramsCpu.resize(batchSize);
-        static std::random_device randomDevice;
-        std::default_random_engine rnd(settings.seed == 0 ? randomDevice() : settings.seed);
         std::uniform_real_distribution<float> xShiftFactor(-settings.translation[0], settings.translation[0]),
             yShiftFactor(-settings.translation[1], settings.translation[1]),
             xScaleFactor(settings.prescale - settings.scale[0], settings.prescale + settings.scale[0]),
@@ -275,6 +278,16 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
                     outLabel[i] = (1 - f) * inLabel[i] + f * mixLabel[i];
             }
         }
+    }
+
+  public:
+    /**
+     * @brief Seeds the random number generator
+     *
+     * @param seed              the seed value
+     */
+    void setRandomSeed(int seed) {
+        rnd.seed(seed);
     }
 };
 } // namespace fastaugment
