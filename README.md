@@ -8,29 +8,26 @@ To render a richly augmented batch of 128 `uint8` images of 224*224 pixels with 
 
 # Overview
 
-Building efficient imaging data pipelines is quite harder than it seems. Common image preprocessing and data augmentation scripts involve plenty processing blocks run on CPU. Depending on the hardware and number of users sharing the CPU resource, these blocks can turn the CPU load and RAM bandwidth into a bottleneck and cause GPU being underutilized.
+Building efficient imaging data pipelines is a challenge. Common preprocessing and augmentation scripts often overload the CPU, potentially bottlenecking the CPU and RAM bandwidth while underutilizing the GPU. This repository provides a GPU-centric, user-friendly alternative for image data augmentation.
 
-This repository offers an easy-to-use replacement of common image data augmentation techniques.
+* Augmentation is performed by the GPU with a minimum memory footprint
+  * Every image in the batch is sampled only once; all the augmentation transformations are applied in a single pass.
+  * High throughput due to the use of texture samplers (HW acceleration units commonly used in video games)
+  * Minimal GPU overhead allows the CPU to handle other tasks.
 
-* Computations are entirely run on GPU, extremely efficient
-  * Every image in the output batch is sampled only once; all the augmentation transformations are applied in a single pass.
-  * FastAugment achieves a huge throughput thanks to the use of texture samplers (HW acceleration units commonly used in video games).
-  * While the GPU overhead is marginal, you can keep your CPU busy with something else.
+* High quality augmented data
+  * Augmentation transformations are randomized across the batch, i.e., every image undergoes a different transformation.
+  * Accurate modeling of 3D viewpoint changes, in-plane transformations, and perspective distortions for improved generalization
 
-* High quality augmented data on output
-  * Augmentation transformations are randomized across the batch, i.e., every image undergoes a different transformation from the same distribution
-  * Accurate modelling of small 3D viewpoint changes with common in-plane transformations and perspective distortions for better generalization
-
-* Plug and play, easy to deploy
-  * Lightweight, no dependencies
-  * Designed to replace a big chunk of a typical data augmentation pipeline with a single call.
-    * But indeed can be used just as another processing block.
-  * Can be used as a mapping in `tf.data.Dataset` processing pipeline, or as a part of a Keras model, or in any other situation as a TensorFlow operation.
+* FastAugment is easy to deploy
+  * Lightweight with no dependencies
+  * Can replace a significant part of a typical data augmentation pipeline with a single call or be used just as another augmentation block
+  * Can be used as a mapping in `tf.data.Dataset` processing pipeline, or as a part of a Keras model, or in any other setup as a TensorFlow operation.
 
 
 ## Features
 
-FastAugment merges some common data augmentation techniques into a single compute block. The transformations parameters are randomly sampled per image from user-defined ranges. The list of implemented transformations follows.
+FastAugment merges a few common data augmentation techniques into a single compute block. Augmentation parameters are randomly sampled per image from a set of user-defined ranges. The list of implemented transformations follows.
 
 * Geometric transformations:
   * Translation
