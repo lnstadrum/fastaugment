@@ -117,33 +117,25 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
      * @param settings          Randomization settings
      * @param inputPtr          Pointer to the input batch tensor in GPU memory
      * @param outputPtr         Pointer to the output batch tensor in GPU memory
-     * @param inputLabelsPtr    Pointer to the input class probabilities tensor
-     * in host memory
-     * @param outputLabelsPtr   Pointer to the output class probabilities tensor
-     * in host memory
+     * @param inputLabelsPtr    Pointer to the input class probabilities tensor in host memory
+     * @param outputLabelsPtr   Pointer to the output class probabilities tensor in host memory
      * @param outputMappingPtr  Pointer to the output homography tensor in host memory
-     * @param batchSize         Batch size; 0 if 3-dimensional input tensor is
-     * given
+     * @param batchSize         Batch size
+     * @param groups            Group size
      * @param inputHeight       Input batch height in pixels
      * @param inputWidth        Input batch width in pixels
      * @param outputHeight      Output batch height in pixels
      * @param outputWidth       Output batch width in pixels
      * @param numClasses        Number of classes
      * @param stream            CUDA stream
-     * @param allocationArgs    Frontend-specific TempGPUBuffer allocation
-     * arguments
+     * @param allocationArgs    Frontend-specific TempGPUBuffer allocation arguments
      */
     template <typename in_t, typename out_t>
     void run(const Settings &settings, const in_t *inputPtr, out_t *outputPtr, const float *inputLabelsPtr,
-             float *outputLabelsPtr, float *outputMappingPtr, int64_t batchSize, int64_t inputHeight,
+             float *outputLabelsPtr, float *outputMappingPtr, int64_t batchSize, int64_t groups, int64_t inputHeight,
              int64_t inputWidth, int64_t outputHeight, int64_t outputWidth, int64_t numClasses, cudaStream_t stream,
              BufferAllocationArgs... allocationArgs)
     {
-        // correct batchSize value (can be zero if input is a 3-dim tensor)
-        const bool isBatch = batchSize > 0;
-        if (!isBatch)
-            batchSize = 1;
-
         // compute scale factors to keep the aspect ratio
         float arScaleX = 1, arScaleY = 1;
         if (inputWidth * outputHeight >= inputHeight * outputWidth)
@@ -154,7 +146,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
         // allocate a temporary buffer ensuring starting address and pitch
         // alignment
         const int64_t pitchBytes = roundUp(inputWidth * 4 * sizeof(in_t), texturePitchAlignment);
-        const size_t bufferSizeBytes = textureAlignment + batchSize * inputHeight * pitchBytes;
+        const size_t bufferSizeBytes = textureAlignment + batchSize * groups * inputHeight * pitchBytes;
         TempGPUBuffer buffer(bufferSizeBytes, allocationArgs...);
         auto unalignedBufferAddress = buffer();
 
@@ -163,7 +155,8 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
             reinterpret_cast<in_t *>(roundUp(reinterpret_cast<size_t>(unalignedBufferAddress), textureAlignment));
 
         // pad the input to have 4 channels and an aligned pitch
-        padChannels(stream, inputPtr, bufferPtr, inputWidth, inputHeight, batchSize, pitchBytes / (4 * sizeof(in_t)));
+        padChannels(stream, inputPtr, bufferPtr, inputWidth, inputHeight, batchSize * groups,
+                    pitchBytes / (4 * sizeof(in_t)));
         reportCudaError(cudaGetLastError(), "Cannot pad the input image");
 
         // check if no labels but mixup
@@ -172,7 +165,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
 
         // prepare parameters samplers
         std::vector<Params> paramsCpu;
-        paramsCpu.resize(batchSize);
+        paramsCpu.resize(batchSize * groups);
         std::uniform_real_distribution<float> xShiftFactor(-settings.translation[0], settings.translation[0]),
             yShiftFactor(-settings.translation[1], settings.translation[1]),
             xScaleFactor(settings.prescale - settings.scale[0], settings.prescale + settings.scale[0]),
@@ -189,7 +182,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
         std::gamma_distribution<> mixupGamma(settings.mixupAlpha, 1);
 
         // sample transformation parameters
-        for (size_t i = 0; i < paramsCpu.size(); ++i)
+        for (size_t i = 0; i < paramsCpu.size(); i += groups)
         {
             auto &img = paramsCpu[i];
             img.flags = 0;
@@ -226,11 +219,11 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
             // Mixup params
             if (mixupApplication(rnd) < settings.mixupProb)
             {
-                img.mixImgIdx = (i + mixIdx(rnd)) % batchSize;
+                img.mixImgIdx = ((i / groups + mixIdx(rnd)) % batchSize) * groups;
                 float x = mixupGamma(rnd);
                 img.mixFactor = x / (x + mixupGamma(rnd)); // beta distribution generation
                                                            // trick using gamma distribution
-                if (img.mixFactor > 0.5)
+                if (img.mixFactor > 0.5f)
                     img.mixFactor = 1 - img.mixFactor;
                 // making sure the current image has higher contribution to avoid
                 // duplicates
@@ -239,10 +232,17 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
             {
                 img.mixImgIdx = i;
             }
+
+            // propagate the same parameters across the group
+            for (size_t j = 1; j < static_cast<size_t>(groups); ++j)
+            {
+                paramsCpu[i + j] = img;
+                paramsCpu[i + j].mixImgIdx += j;
+            }
         }
 
         // create temporary tensor for parameters
-        const size_t paramsSizeBytes = sizeof(Params) * batchSize;
+        const size_t paramsSizeBytes = sizeof(Params) * batchSize * groups;
         TempGPUBuffer paramsGpu(paramsSizeBytes, allocationArgs...);
 
         // copy parameters to GPU
@@ -259,8 +259,8 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
                     inputWidth, inputHeight,
                     pitchBytes, // input sizes
                     outputWidth,
-                    outputHeight, // output sizes
-                    batchSize,    // batch size
+                    outputHeight,       // output sizes
+                    batchSize * groups, // batch size
                     maxTextureHeight,
                     paramsGpuPtr); // transformation description
         }
@@ -274,7 +274,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
         {
             const float *inLabel = inputLabelsPtr;
             float *outLabel = outputLabelsPtr;
-            for (int64_t n = 0; n < batchSize; ++n, inLabel += numClasses, outLabel += numClasses)
+            for (int64_t n = 0; n < batchSize * groups; ++n, inLabel += numClasses, outLabel += numClasses)
             {
                 float f = paramsCpu[n].mixFactor;
                 const float *mixLabel = inputLabelsPtr + paramsCpu[n].mixImgIdx * numClasses;
@@ -287,7 +287,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
         if (outputMappingPtr)
         {
             float *ptr = outputMappingPtr;
-            for (size_t i = 0; i < paramsCpu.size(); ++i, ptr += 9)
+            for (size_t i = 0; i < paramsCpu.size(); i += groups, ptr += 9)
             {
                 // compute homography in normalized coordinates following the kernel implementation
                 const auto &a = paramsCpu[i].geom;

@@ -150,8 +150,8 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
                                         std::to_string(outputSize.size()));
 
         // check the input tensor
-        if (input.dim() != 3 && input.dim() != 4)
-            throw std::invalid_argument("Expected a 3- or 4-dimensional input tensor, got " +
+        if (input.dim() < 3 || input.dim() > 5)
+            throw std::invalid_argument("Expected a 3-, 4- or 5-dimensional input tensor, got " +
                                         std::to_string(input.dim()) + " dimensions");
         if (!input.is_cuda())
             throw std::invalid_argument("Expected an input tensor in GPU memory (likely missing a .cuda() "
@@ -162,15 +162,15 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
             throw std::invalid_argument("Expected uint8 or float input tensor");
 
         // get input sizes
-        const bool isBatch = input.dim() == 4;
-        const int64_t batchSize = isBatch ? input.size(0) : 0, inputHeight = input.size(isBatch ? 1 : 0),
-                      inputWidth = input.size(isBatch ? 2 : 1), inputChannels = input.size(isBatch ? 3 : 2),
+        const int64_t batchSize = input.dim() >= 4 ? input.size(0) : 0, groups = input.dim() == 5 ? input.size(1) : 0,
+                      inputHeight = input.size(input.dim() - 3), inputWidth = input.size(input.dim() - 2),
+                      inputChannels = input.size(input.dim() - 1),
                       outputWidth = outputSize.empty() ? inputWidth : outputSize[0],
                       outputHeight = outputSize.empty() ? inputHeight : outputSize[1];
 
         // check number of input channels
         if (inputChannels != 3)
-            throw std::invalid_argument("Expected a 3-channel channels-last (NHWC) input tensor, got " +
+            throw std::invalid_argument("Expected a 3-channel channels-last (*HW3) input tensor, got " +
                                         std::to_string(inputChannels) + " channels");
 
         // get CUDA stream
@@ -178,15 +178,24 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
 
         // get input labels tensor
         const bool noLabels = labels.dim() == 0 || (labels.dim() == 1 && labels.size(0) == 0);
+        const auto numClasses = noLabels ? 0 : labels.size(labels.dim() - 1);
         if (!noLabels)
         {
-            if (labels.dim() != 2)
-                throw std::invalid_argument("Expected a 2-dimensional input_labels tensor, got " +
-                                            std::to_string(labels.dim()) + " dimensions");
+            const auto expectedDims = input.dim() - 2;
+            if (labels.dim() != expectedDims)
+                throw std::invalid_argument("Expected a " + std::to_string(expectedDims) +
+                                            "-dimensional input_labels tensor, got " + std::to_string(labels.dim()) +
+                                            " dimensions");
             if (labels.size(0) != batchSize)
                 throw std::invalid_argument("First dimension of the input labels tensor is expected to match "
                                             "the batch size, but got " +
                                             std::to_string(labels.size(0)));
+
+            const auto expectedNumElems = batchSize * std::max<int64_t>(groups, 1) * numClasses;
+            if (labels.numel() != expectedNumElems)
+                throw std::invalid_argument("Expected " + std::to_string(expectedNumElems) +
+                                            " elements in the labels tensor but got " + std::to_string(labels.numel()));
+
             if (!labels.is_cpu())
                 throw std::invalid_argument("Expected an input_labels tensor stored in RAM (likely missing a "
                                             ".cpu() call)");
@@ -198,8 +207,11 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
         // allocate output tensors
         auto outputOptions =
             torch::TensorOptions().device(input.device()).dtype(isFloat32Output ? torch::kFloat32 : torch::kUInt8);
-        auto outputShape(isBatch ? std::vector<int64_t>{batchSize, outputHeight, outputWidth, 3}
-                                 : std::vector<int64_t>{outputHeight, outputWidth, 3});
+        std::vector<int64_t> outputShape{outputHeight, outputWidth, 3};
+        if (groups > 0)
+            outputShape.emplace(outputShape.begin(), groups);
+        if (batchSize > 0)
+            outputShape.emplace(outputShape.begin(), batchSize);
 
         torch::Tensor output = torch::empty(outputShape, outputOptions);
         torch::Tensor outputLabels = torch::empty_like(labels);
@@ -208,14 +220,14 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
         if (outputMapping)
         {
             auto opts = torch::TensorOptions().dtype(torch::kFloat32);
-            mapping = torch::empty({batchSize, 3, 3}, opts);
+            mapping = batchSize > 0 ? torch::empty({batchSize, 3, 3}, opts) : torch::empty({3, 3}, opts);
         }
         auto outputMappingPtr = outputMapping ? mapping.expect_contiguous()->data_ptr<float>() : nullptr;
 
         // launch the kernel
-        launchKernel(input, output, inputLabelsPtr, outputLabels.data_ptr<float>(), outputMappingPtr, batchSize,
-                     inputHeight, inputWidth, outputHeight, outputWidth, noLabels ? 0 : labels.size(1), stream.stream(),
-                     stream);
+        launchKernel(input, output, inputLabelsPtr, outputLabels.data_ptr<float>(), outputMappingPtr,
+                     std::max<int64_t>(batchSize, 1), std::max<int64_t>(groups, 1), inputHeight, inputWidth,
+                     outputHeight, outputWidth, numClasses, stream.stream(), stream);
 
         return {output, outputLabels, mapping};
     }

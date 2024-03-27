@@ -22,6 +22,14 @@ class ShapeTests(unittest.TestCase):
         output_batch = self.augment(input_batch, output_size=[width, height])
         self.assertEqual(output_batch.shape, (7, height, width, 3))
 
+    def test_input_dims(self):
+        x = self.augment(torch.zeros(10, 20, 3).cuda())
+        self.assertEqual(x.shape, (10, 20, 3))
+        x = self.augment(torch.zeros(5, 10, 20, 3).cuda())
+        self.assertEqual(x.shape, (5, 10, 20, 3))
+        x = self.augment(torch.zeros(5, 2, 10, 20, 3).cuda())
+        self.assertEqual(x.shape, (5, 2, 10, 20, 3))
+
 
 class ColorTests(unittest.TestCase):
     """Color-related tests"""
@@ -108,9 +116,9 @@ class MixupLabelsTests(unittest.TestCase):
 
     def test_no_mixup(self):
         # make random input
-        input_batch = torch.randint(size=(8, 8, 8, 3), high=255)
+        input_batch = torch.randint(size=(8, 5, 8, 8, 3), high=255)
         input_batch = input_batch.to(torch.uint8).cuda()
-        input_labels = torch.rand(size=(8, 1000))
+        input_labels = torch.rand(size=(8, 5, 1000))
 
         # apply random transformation
         _, output_labels = FastAugment()(input_batch, input_labels)
@@ -127,9 +135,8 @@ class MixupLabelsTests(unittest.TestCase):
         input_batch = input_batch.reshape(-1, 1, 1, 1).repeat(1, 5, 5, 3)
 
         # transform labels to one-hot
-        input_proba = torch.nn.functional.one_hot(input_labels.to(torch.long), 2).to(
-            torch.float32
-        )
+        input_labels = torch.nn.functional.one_hot(input_labels.to(torch.long), 2) \
+            .to(torch.float32)
 
         # apply mixup
         augment = FastAugment(
@@ -143,13 +150,13 @@ class MixupLabelsTests(unittest.TestCase):
             cutout=0,
             mixup=0.9,
         )
-        output_batch, output_proba = augment(input_batch, input_proba)
+        output_batch, output_labels = augment(input_batch, input_labels)
 
         # check that probabilities sum up to 1
-        assert torch.allclose(output_proba[:, 0] + output_proba[:, 1], torch.ones((50)))
+        assert torch.allclose(output_labels[:, 0] + output_labels[:, 1], torch.ones((50)))
 
         # compare probabilities to center pixel values
-        assert torch.allclose(output_proba[:, 1], output_batch[:, 3, 3, 0].cpu())
+        assert torch.allclose(output_labels[:, 1], output_batch[:, 3, 3, 0].cpu())
 
 
 class SeedTests(unittest.TestCase):
@@ -231,9 +238,9 @@ class DatatypeTests(unittest.TestCase):
 class CoordinatesMappingTest(unittest.TestCase):
     def test_coordinates_mapping(self):
         # generate random batch of zeros with a bright spot at a known position
-        input_batch = torch.zeros((30, 120, 250, 3), dtype=torch.uint8).cuda()
+        input_batch = torch.zeros((30, 2, 120, 250, 3), dtype=torch.uint8).cuda()
         y, x = 28, 222
-        input_batch[:, y-2:y+2, x-2:x+2, :] = 255
+        input_batch[..., y-2:y+2, x-2:x+2, :] = 255
 
         # perform augmentation
         augment = FastAugment(gamma_corr=0,
@@ -259,9 +266,10 @@ class CoordinatesMappingTest(unittest.TestCase):
         coords = (coords[:, :2] / coords[:, 2:3]).round().to(torch.int32).numpy()
 
         # make sure it is in the output images
-        for image, (x, y) in zip(output_batch, coords):
-            if x >= 0 and x < image.shape[-2] and y >= 0 and y < image.shape[-3]:
-                self.assertEqual(image[y, x, 0], 255)
+        for group, (x, y) in zip(output_batch, coords):
+            if x >= 0 and x < group.shape[-2] and y >= 0 and y < group.shape[-3]:
+                for image in group:
+                    self.assertEqual(image[y, x, 0], 255)
 
 
 if __name__ == "__main__":
