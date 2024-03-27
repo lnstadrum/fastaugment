@@ -79,7 +79,9 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
   protected:
     std::default_random_engine rnd;
 
-    KernelBase(): rnd(randomDevice()) {}
+    KernelBase() : rnd(randomDevice())
+    {
+    }
 
     static inline void reportCudaError(cudaError_t status, const std::string &message)
     {
@@ -119,6 +121,7 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
      * in host memory
      * @param outputLabelsPtr   Pointer to the output class probabilities tensor
      * in host memory
+     * @param outputMappingPtr  Pointer to the output homography tensor in host memory
      * @param batchSize         Batch size; 0 if 3-dimensional input tensor is
      * given
      * @param inputHeight       Input batch height in pixels
@@ -132,8 +135,9 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
      */
     template <typename in_t, typename out_t>
     void run(const Settings &settings, const in_t *inputPtr, out_t *outputPtr, const float *inputLabelsPtr,
-             float *outputLabelsPtr, int64_t batchSize, int64_t inputHeight, int64_t inputWidth, int64_t outputHeight,
-             int64_t outputWidth, int64_t numClasses, cudaStream_t stream, BufferAllocationArgs... allocationArgs)
+             float *outputLabelsPtr, float *outputMappingPtr, int64_t batchSize, int64_t inputHeight,
+             int64_t inputWidth, int64_t outputHeight, int64_t outputWidth, int64_t numClasses, cudaStream_t stream,
+             BufferAllocationArgs... allocationArgs)
     {
         // correct batchSize value (can be zero if input is a 3-dim tensor)
         const bool isBatch = batchSize > 0;
@@ -278,6 +282,86 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
                     outLabel[i] = (1 - f) * inLabel[i] + f * mixLabel[i];
             }
         }
+
+        // fill output mapping tensor
+        if (outputMappingPtr)
+        {
+            float *ptr = outputMappingPtr;
+            for (size_t i = 0; i < paramsCpu.size(); ++i, ptr += 9)
+            {
+                // compute homography in normalized coordinates following the kernel implementation
+                const auto &a = paramsCpu[i].geom;
+                ptr[0] = 2.0f * (a[1][1] * a[2][2] - a[1][2] * a[2][1]);
+                ptr[1] = -2.0f * (a[1][0] * a[2][2] - a[1][2] * a[2][0]);
+                ptr[2] = a[2][2] * (a[1][0] - a[1][1]) + a[1][2] * (a[2][1] - a[2][0]);
+
+                ptr[3] = -2.0f * (a[0][1] * a[2][2] - a[0][2] * a[2][1]);
+                ptr[4] = 2.0f * (a[0][0] * a[2][2] - a[0][2] * a[2][0]);
+                ptr[5] = a[2][2] * (a[0][1] - a[0][0]) + a[0][2] * (a[2][0] - a[2][1]);
+
+                ptr[6] = 2.0f * (a[0][1] * a[1][2] - a[0][2] * a[1][1]);
+                ptr[7] = -2.0f * (a[0][0] * a[1][2] - a[0][2] * a[1][0]);
+                ptr[8] =
+                    2.0f * (a[0][0] * a[1][1] * a[2][2] - a[0][0] * a[1][2] * a[2][1] - a[0][1] * a[1][0] * a[2][2] +
+                            a[0][1] * a[1][2] * a[2][0] + a[0][2] * a[1][0] * a[2][1] - a[0][2] * a[1][1] * a[2][0]) +
+                    a[0][2] * (a[1][1] - a[1][0]) + a[1][2] * (a[0][0] - a[0][1]);
+
+                // take into account flipping
+                if (paramsCpu[i].flags & FLAG_HORIZONTAL_FLIP)
+                {
+                    ptr[2] += ptr[0];
+                    ptr[0] = -ptr[0];
+                    ptr[5] += ptr[3];
+                    ptr[3] = -ptr[3];
+                    ptr[8] += ptr[6];
+                    ptr[6] = -ptr[6];
+                }
+
+                if (paramsCpu[i].flags & FLAG_VERTICAL_FLIP)
+                {
+                    ptr[2] += ptr[1];
+                    ptr[1] = -ptr[1];
+                    ptr[5] += ptr[4];
+                    ptr[4] = -ptr[4];
+                    ptr[8] += ptr[7];
+                    ptr[7] = -ptr[7];
+                }
+
+                // use input pixel coordinates
+                ptr[0] /= inputWidth;
+                ptr[1] /= inputHeight;
+                ptr[2] += 0.5f * (ptr[0] + ptr[1]);
+                ptr[3] /= inputWidth;
+                ptr[4] /= inputHeight;
+                ptr[5] += 0.5f * (ptr[3] + ptr[4]);
+                ptr[6] /= inputWidth;
+                ptr[7] /= inputHeight;
+                ptr[8] += 0.5f * (ptr[6] + ptr[7]);
+
+                // take into account the random translation
+                const float *translation = paramsCpu[i].translation;
+                ptr[0] -= (translation[0] - 0.5f) * ptr[6];
+                ptr[1] -= (translation[0] - 0.5f) * ptr[7];
+                ptr[2] -= (translation[0] - 0.5f) * ptr[8];
+                ptr[3] -= (translation[1] - 0.5f) * ptr[6];
+                ptr[4] -= (translation[1] - 0.5f) * ptr[7];
+                ptr[5] -= (translation[1] - 0.5f) * ptr[8];
+
+                // use output pixel coordinates
+                ptr[0] *= outputWidth;
+                ptr[1] *= outputWidth;
+                ptr[2] *= outputWidth;
+                ptr[3] *= outputHeight;
+                ptr[4] *= outputHeight;
+                ptr[5] *= outputHeight;
+                ptr[0] -= 0.5f * ptr[6];
+                ptr[1] -= 0.5f * ptr[7];
+                ptr[2] -= 0.5f * ptr[8];
+                ptr[3] -= 0.5f * ptr[6];
+                ptr[4] -= 0.5f * ptr[7];
+                ptr[5] -= 0.5f * ptr[8];
+            }
+        }
     }
 
   public:
@@ -286,7 +370,8 @@ template <class TempGPUBuffer, typename... BufferAllocationArgs> class KernelBas
      *
      * @param seed              the seed value
      */
-    void setRandomSeed(int seed) {
+    void setRandomSeed(int seed)
+    {
         rnd.seed(seed);
     }
 };

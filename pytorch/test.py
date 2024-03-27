@@ -1,7 +1,6 @@
 from fast_augment_torch import FastAugment, BYPASS_PARAMS
 import numpy
 import torch
-import tempfile
 import unittest
 
 
@@ -227,6 +226,42 @@ class DatatypeTests(unittest.TestCase):
         # cast back to uint8 and compare: expecting the same output
         output_batch_test = (255 * output_batch_float.clamp(0, 1)).to(torch.uint8)
         self.assertTrue(torch.equal(output_batch_ref, output_batch_test))
+
+
+class CoordinatesMappingTest(unittest.TestCase):
+    def test_coordinates_mapping(self):
+        # generate random batch of zeros with a bright spot at a known position
+        input_batch = torch.zeros((30, 120, 250, 3), dtype=torch.uint8).cuda()
+        y, x = 28, 222
+        input_batch[:, y-2:y+2, x-2:x+2, :] = 255
+
+        # perform augmentation
+        augment = FastAugment(gamma_corr=0,
+                              brightness=0,
+                              hue=0,
+                              saturation=0,
+                              mixup=0,
+                              cutout=0,
+                              translation=0.1,
+                              rotation=30,
+                              scale=0.2,
+                              perspective=15,
+                              flip_horizontally=True,
+                              flip_vertically=True,
+                              prescale=2.0)
+        output_batch, mappings = augment(input_batch,
+                                         output_type=torch.uint8,
+                                         output_mapping=True,
+                                         output_size=(400, 400))
+
+        # get coordinates of the spot in the augmented images
+        coords = torch.matmul(mappings, torch.tensor([x, y, 1], dtype=torch.float32).t())
+        coords = (coords[:, :2] / coords[:, 2:3]).round().to(torch.int32).numpy()
+
+        # make sure it is in the output images
+        for image, (x, y) in zip(output_batch, coords):
+            if x >= 0 and x < image.shape[-2] and y >= 0 and y < image.shape[-3]:
+                self.assertEqual(image[y, x, 0], 255)
 
 
 if __name__ == "__main__":

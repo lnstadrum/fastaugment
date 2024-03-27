@@ -254,5 +254,4 @@ Mixup:
 # Roadmap
 
  * Test in a multi-GPU setup
- * Extend to object detection: enable bounding boxes / keypoints transformation
  * Extend to semantic segmentation: enable nearest-neighbor resampling for segmentation masks

@@ -140,7 +140,8 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
     }
 
     std::vector<torch::Tensor> operator()(const torch::Tensor &input, const torch::Tensor &labels,
-                                          const std::vector<int64_t> &outputSize, bool isFloat32Output)
+                                          const std::vector<int64_t> &outputSize, bool isFloat32Output,
+                                          bool outputMapping)
     {
         // check output size
         if (!outputSize.empty() && outputSize.size() != 2)
@@ -203,11 +204,20 @@ class TorchKernel : public fastaugment::KernelBase<TorchTempGPUBuffer, c10::cuda
         torch::Tensor output = torch::empty(outputShape, outputOptions);
         torch::Tensor outputLabels = torch::empty_like(labels);
 
-        // launch the kernel
-        launchKernel(input, output, inputLabelsPtr, outputLabels.data_ptr<float>(), batchSize, inputHeight, inputWidth,
-                     outputHeight, outputWidth, noLabels ? 0 : labels.size(1), stream.stream(), stream);
+        torch::Tensor mapping;
+        if (outputMapping)
+        {
+            auto opts = torch::TensorOptions().dtype(torch::kFloat32);
+            mapping = torch::empty({batchSize, 3, 3}, opts);
+        }
+        auto outputMappingPtr = outputMapping ? mapping.expect_contiguous()->data_ptr<float>() : nullptr;
 
-        return {output, outputLabels};
+        // launch the kernel
+        launchKernel(input, output, inputLabelsPtr, outputLabels.data_ptr<float>(), outputMappingPtr, batchSize,
+                     inputHeight, inputWidth, outputHeight, outputWidth, noLabels ? 0 : labels.size(1), stream.stream(),
+                     stream);
+
+        return {output, outputLabels, mapping};
     }
 };
 
@@ -227,5 +237,5 @@ PYBIND11_MODULE(TORCH_EXTENSION_NAME, module)
         .def("set_seed", &TorchKernel::setRandomSeed, py::arg("seed"))
 
         .def("__call__", &TorchKernel::operator(), py::arg("input"), py::arg("input_labels"), py::arg("output_size"),
-             py::arg("is_float32_output"));
+             py::arg("is_float32_output"), py::arg("output_mapping") = false);
 }

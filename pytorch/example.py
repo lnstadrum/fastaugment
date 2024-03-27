@@ -5,7 +5,6 @@ import timeit
 
 from torchvision.datasets import Flowers102
 from torchvision.transforms import PILToTensor
-from torch.utils.data import DataLoader
 from fast_augment_torch import CenterCrop, FastAugment
 
 
@@ -24,10 +23,10 @@ crop = CenterCrop((500, 500))
 x = []
 y = []
 for _ in range(20):
-    image, label = dataset[random.randint(0, len(dataset))]
+    image, label = dataset[random.randint(0, len(dataset) - 1)]
     x.append(crop(image.cuda().permute(1, 2, 0).contiguous()))
     y.append(
-        torch.nn.functional.one_hot(torch.LongTensor([label - 1]), num_classes=102)
+        torch.nn.functional.one_hot(torch.LongTensor([label]), num_classes=102)
     )
 
 x = torch.stack(x, dim=0)

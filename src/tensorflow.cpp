@@ -214,8 +214,8 @@ class FastAugmentTFOpKernel : public OpKernel,
         {
             fastaugment::KernelBase<TFTempGPUBuffer, OpKernelContext *>::run<in_t, out_t>(
                 *this, inputTensor.flat<in_t>().data(), outputTensor->flat<out_t>().data(), inputLabelsPtr,
-                outputLabelsTensor->flat<float>().data(), batchSize, inputHeight, inputWidth, outputHeight, outputWidth,
-                noLabels ? 0 : labelsShape.dim_size(1), stream, context);
+                outputLabelsTensor->flat<float>().data(), nullptr, batchSize, inputHeight, inputWidth, outputHeight,
+                outputWidth, noLabels ? 0 : labelsShape.dim_size(1), stream, context);
         }
         catch (std::exception &ex)
         {

@@ -59,7 +59,7 @@ class CenterCrop:
         self.size = size
 
     def __call__(self, x):
-        x, _ = self.backend(
+        x, _, _ = self.backend(
             x, _empty_tensor, output_size=self.size, is_float32_output=False
         )
         return x
@@ -102,7 +102,7 @@ class FastAugment:
         color_inversion=False,
         flip_horizontally=True,
         flip_vertically=False,
-        seed=0,
+        seed=0
     ):
         """Creates a FastAugment object used to apply a set of random geometry and
         color transformations to batches of images.
@@ -208,7 +208,7 @@ class FastAugment:
             color_inversion=color_inversion,
             flip_horizontally=flip_horizontally,
             flip_vertically=flip_vertically,
-            seed=seed,
+            seed=seed
         )
 
     def set_seed(self, seed: int):
@@ -219,30 +219,43 @@ class FastAugment:
         """
         self.backend.set_seed(seed)
 
-    def __call__(self, x, y=None, output_size=None, output_type=torch.float32):
+    def __call__(self, x, y=None, output_size=None, output_type=torch.float32, output_mapping=False):
         """Applies a sequence of random transformations to images in a batch.
 
         Args:
-            x:            A `Tensor` of `uint8` or `float32` type containing an input
-                          image or batch in channels-last layout (`HWC` or `NHWC`).
-                          3-channel color images are expected (`C=3`).
-            y:            A `Tensor` of `float32` type containing input labels in
-                          one-hot format. Its outermost dimension is expected to match
-                          the batch size. Optional, can be empty or None.
-            output_size:  A list `[W, H]` specifying the output batch width and height
-                          in pixels. If none, the input size is kept (default).
-            output_type:  Output image datatype. Can be `float32` or `uint8`.
-                          Default: `float32`.
+            x:                  A `Tensor` of `uint8` or `float32` type containing an input
+                                image or batch in channels-last layout (`HWC` or `NHWC`).
+                                3-channel color images are expected (`C=3`).
+            y:                  A `Tensor` of `float32` type containing input labels in
+                                one-hot format. Its outermost dimension is expected to match
+                                the batch size. Optional, can be empty or None.
+            output_size:        A list `[W, H]` specifying the output batch width and height
+                                in pixels. If none, the input size is kept (default).
+            output_type:        Output image datatype. Can be `float32` or `uint8`.
+                                Default: `float32`.
+            output_mapping:     If `True`, the applied transformations are given as the
+                                last output argument. These are 3x3 matrices mapping input
+                                homogeneous coordinates in pixels to output coordinates in
+                                pixels.
         """
         if output_type not in [torch.uint8, torch.float32]:
             raise ValueError(f"Unsupported output type: {output_type}")
 
-        x_, y_ = self.backend(
+        x_, y_, mapping = self.backend(
             input=x,
             input_labels=_empty_tensor if y is None else y,
             output_size=output_size or [],
             is_float32_output=output_type == torch.float32,
+            output_mapping=output_mapping
         )
-        if y is None:
+
+        if y is None and not output_mapping:
             return x_
-        return x_, y_
+
+        outputs = (x_,)
+        if y is not None:
+            outputs += (y_,)
+        if output_mapping:
+            outputs += (mapping,)
+
+        return outputs
