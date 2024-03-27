@@ -50,7 +50,7 @@ class FastAugmentTFOpKernel : public OpKernel,
     size_t getPair(OpKernelConstruction *context, const char *attribute, float &a, float &b)
     {
         std::vector<float> listArg;
-        if (context->GetAttr(attribute, &listArg) != Status::OK())
+        if (!context->GetAttr(attribute, &listArg).ok())
         {
             context->CtxFailure(
                 errors::InvalidArgument("Cannot get '" + std::string(attribute) +
@@ -288,5 +288,5 @@ REGISTER_OP("Augment")
 
         ctx->set_output(1, ctx->input(1));
 
-        return Status::OK();
+        return Status();
     });
