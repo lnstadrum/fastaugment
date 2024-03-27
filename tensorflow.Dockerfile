@@ -1,10 +1,10 @@
-FROM tensorflow/tensorflow:2.7.1-gpu
+FROM tensorflow/tensorflow:latest-gpu
 
 # add source code
 ADD . /opt/fastaugment
 
 # install cmake
-RUN apt install -y cmake
+RUN apt update && apt install -y cmake
 
 # compile
 RUN cd /opt/fastaugment/tensorflow &&\
